@@ -54,7 +54,10 @@ export function parseTidesAtlas(body: unknown, range: FetchRange): ParsedTides |
   const id = str(st.id) ?? str(st.slug) ?? str(st.station_id) ?? str(b.station_id) ?? str(b.port) ?? str(b.slug) ?? null;
   const name = str(st.name) ?? str(b.station_name) ?? str(b.name) ?? null;
   const distanceKm = num(st.distance_km) ?? num(st.distance) ?? num(b.distance_km) ?? null;
-  const datum = normaliseDatum(b.datum ?? st.datum ?? (rec(b.units) ?? {}).datum);
+  // TidesAtlas returns datum as an object {reference, native, available}; older/simple shapes use a bare string.
+  const datumObj = rec(b.datum);
+  const datumSrc = datumObj ? (str(datumObj.reference) ?? str(datumObj.native)) : (b.datum ?? st.datum ?? (rec(b.units) ?? {}).datum);
+  const datum = normaliseDatum(datumSrc);
   if (datum === 'unknown') notes.push('datum not stated in response; labelled unknown');
 
   const seriesRaw = (Array.isArray(b.heights) ? b.heights : Array.isArray(b.hourly) ? b.hourly : Array.isArray(b.predictions) ? b.predictions : Array.isArray(b.series) ? b.series : []) as unknown[];

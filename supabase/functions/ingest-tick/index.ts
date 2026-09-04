@@ -16,6 +16,19 @@ const LAYERS: Layer[] = ['atmospheric', 'comparison', 'marine', 'tidal'];
 const BATCH = 20;
 const HOUR = 3_600_000;
 
+// TidesAtlas key: env first, else the Vault secret via public.tidesatlas_api_key()
+// (migration 0006), mirroring the cron-secret fallback. Cached for the warm isolate.
+let vaultTidalKey: string | null | undefined;
+async function tidalApiKey(admin: Admin): Promise<string | null> {
+  const envKey = Deno.env.get('TIDESATLAS_API_KEY');
+  if (envKey) return envKey;
+  if (vaultTidalKey === undefined) {
+    try { const { data } = await admin.rpc('tidesatlas_api_key'); vaultTidalKey = typeof data === 'string' && data.length ? data : null; }
+    catch { vaultTidalKey = null; }
+  }
+  return vaultTidalKey;
+}
+
 type Body = { layer?: Layer | 'all'; force?: boolean; sync?: boolean; trigger?: string };
 
 Deno.serve(async (req) => {
@@ -109,7 +122,9 @@ async function processTarget(admin: Admin, settings: Settings, layer: Layer, t: 
       } else errors.push(r.error);
       next = new Date(now + 6 * HOUR).toISOString();
     } else {
-      const r: AdapterResult<TidalRow> = settings.sources.tidal === 'worldtides' ? await fetchWorldTides(target, range, env) : await fetchTidesAtlas(target, range, env);
+      const useKey = await tidalApiKey(admin);
+      const tenv = useKey ? { fetch: env.fetch, now: env.now, env: (nm: string) => (nm === 'TIDESATLAS_API_KEY' ? useKey : Deno.env.get(nm)) } : env;
+      const r: AdapterResult<TidalRow> = settings.sources.tidal === 'worldtides' ? await fetchWorldTides(target, range, env) : await fetchTidesAtlas(target, range, tenv);
       if (r.ok) {
         const { error } = await admin.from('forecast_tidal').upsert(r.rows, { onConflict: 'target_id,source,station_id,forecast_time' });
         if (error) throw new Error(error.message);

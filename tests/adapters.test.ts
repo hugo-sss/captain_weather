@@ -185,6 +185,19 @@ describe('TidesAtlas adapter (§5.4)', () => {
     expect(p?.series[3].heightM).toBeCloseTo(1.5, 2); // midpoint of a cosine curve
     expect(p?.notes.join(' ')).toContain('cosine');
   });
+  it('parses the real TidesAtlas shape (port block, datum object, extremes only)', () => {
+    const body = { port: { name: 'Ban Chalong', slug: 'ban-chalong', lat: 7.84468, lon: 98.33897 }, data_source: 'ticon', datum: { reference: 'LAT', native: 'LAT', available: ['MSL', 'LAT', 'MLLW'] }, extremes: [
+      { datetime: '2026-09-04T08:50:10+07:00', timestamp: 1788486610, height_m: 1.04, type: 'low' },
+      { datetime: '2026-09-04T14:49:29+07:00', timestamp: 1788508169, height_m: 2.2, type: 'high' },
+      { datetime: '2026-09-04T20:55:03+07:00', timestamp: 1788530103, height_m: 1.09, type: 'low' },
+    ] };
+    const p = parseTidesAtlas(body, { start: '2026-09-04T02:00:00Z', end: '2026-09-04T13:00:00Z' });
+    expect(p?.station.id).toBe('ban-chalong');
+    expect(p?.station.name).toBe('Ban Chalong');
+    expect(p?.datum).toBe('LAT');
+    expect(p?.derived).toBe(true);
+    expect(p!.series.length).toBeGreaterThan(3);
+  });
   it('does not guess a station when the response has none', () => {
     const p = parseTidesAtlas({ heights: [{ time: '2026-09-10T00:00:00Z', height: 1 }, { time: '2026-09-10T01:00:00Z', height: 1.2 }] }, range);
     expect(p?.station.id.startsWith('fes2022@')).toBe(true);
