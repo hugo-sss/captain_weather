@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+.env
+.env.*
+!.env.example
+.supabase
+supabase/.temp
+supabase/functions/**/bundle
+.DS_Store
+*.log
