@@ -1,0 +1,12 @@
+{
+  "description": "Feature 11 fixtures. A 20° divergence flags, a 10° divergence does not, and a 20° divergence at 5 kn does not (light air floor 8 kn).",
+  "thresholds": { "wind_speed_kn": 5, "wind_dir_deg": 15, "light_air_floor_kn": 8 },
+  "cases": [
+    { "name": "20deg_at_15kn_flags", "primary": { "wind_p50_kn": 15, "wind_dir_deg": 200 }, "comparison": { "wind_kn": 15, "wind_dir_deg": 220 }, "expect": true },
+    { "name": "10deg_at_15kn_no_flag", "primary": { "wind_p50_kn": 15, "wind_dir_deg": 200 }, "comparison": { "wind_kn": 15, "wind_dir_deg": 210 }, "expect": false },
+    { "name": "20deg_at_5kn_no_flag", "primary": { "wind_p50_kn": 5, "wind_dir_deg": 200 }, "comparison": { "wind_kn": 5, "wind_dir_deg": 220 }, "expect": false },
+    { "name": "6kn_speed_delta_at_20kn_flags", "primary": { "wind_p50_kn": 20, "wind_dir_deg": 200 }, "comparison": { "wind_kn": 26, "wind_dir_deg": 200 }, "expect": true },
+    { "name": "wraparound_350_vs_10_is_20deg_flags", "primary": { "wind_p50_kn": 20, "wind_dir_deg": 350 }, "comparison": { "wind_kn": 20, "wind_dir_deg": 10 }, "expect": true },
+    { "name": "wraparound_355_vs_5_is_10deg_no_flag", "primary": { "wind_p50_kn": 20, "wind_dir_deg": 355 }, "comparison": { "wind_kn": 20, "wind_dir_deg": 5 }, "expect": false }
+  ]
+}
