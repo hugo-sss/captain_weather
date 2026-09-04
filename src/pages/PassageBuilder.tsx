@@ -125,7 +125,7 @@ function BuilderForm({ id, passage, waypoints: rows, vessels }: { id: string | u
     <div className="flex-1 min-h-0 flex flex-col">
       <DisclaimerBar />
       <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_380px]">
-        <div className="relative min-h-[360px]">
+        <div className="relative min-h-[40vh] lg:min-h-[360px]">
           <PassageMap waypoints={withEta.map((w) => ({ id: w.key, sequence: w.sequence, name: w.name, lat: w.lat, lon: w.lon, is_anchorage: w.is_anchorage }))} editable selectedId={selectedKey} showOpenSeaMap={prefs.show_openseamap} onAddPin={addPin} onMovePin={movePin} onSelect={(k) => { setSelectedKey(k); setSheetKey(k); }} />
           <div className="absolute top-2 right-2 z-[1000] rounded-md border border-border bg-bg-1/90 px-2 py-1 text-[11px] flex items-center gap-2"><span>OpenSeaMap</span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} /></div>
           <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-border bg-bg-1/90 px-2 py-1 text-[11px] text-text-2">Click the map to drop a pin. Drag pins to move them.</div>

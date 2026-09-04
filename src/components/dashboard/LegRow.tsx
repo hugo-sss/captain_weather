@@ -7,15 +7,16 @@ import { DisagreementBadge } from './DisagreementBadge.tsx';
 import { ConfidenceDot } from '@/components/briefing/ConfidenceDot.tsx';
 import { DirArrow, TideGlyph, TowardArrow, WindBand } from './WindBand.tsx';
 import { cn } from '@/lib/utils.ts';
+import { Link } from 'react-router-dom';
 
 export type LegRowProps = {
-  wp: WaypointRow; c: WaypointConditionsRow | null; maxWindKn: number | null; selected: boolean; onSelect: () => void; showComparison: boolean; utcOffsetMin: number | null;
+  wp: WaypointRow; c: WaypointConditionsRow | null; maxWindKn: number | null; selected: boolean; onSelect: () => void; showComparison: boolean; utcOffsetMin: number | null; passageId?: string;
 };
 
 const Td = ({ children, className, title }: { children: React.ReactNode; className?: string; title?: string }) => <td title={title} className={cn('px-2 py-1.5 whitespace-nowrap align-middle', className)}>{children}</td>;
 const Gap = ({ reason }: { reason: string }) => <span className="inline-block h-3 w-8 gap-hatch rounded-sm align-middle" title={reason} />;
 
-export function LegRow({ wp, c, maxWindKn, selected, onSelect, showComparison, utcOffsetMin }: LegRowProps) {
+export function LegRow({ wp, c, maxWindKn, selected, onSelect, showComparison, utcOffsetMin, passageId }: LegRowProps) {
   const eta = c?.eta ?? wp.eta;
   const risk = (c?.risk_flag ?? 'unknown') as RiskFlag;
   const reasons = (c?.risk_reasons as string[] | undefined) ?? [];
@@ -47,6 +48,7 @@ export function LegRow({ wp, c, maxWindKn, selected, onSelect, showComparison, u
       <Td><DisagreementBadge active={!!c?.source_disagreement} speedDelta={num(c?.wind_speed_delta_kn)} dirDelta={num(c?.wind_dir_delta_deg)} primary={c?.atmos_source} comparison={c?.comparison_source} /></Td>
       <Td><RiskPill flag={risk} reasons={reasons} /></Td>
       <Td><ConfidenceDot level={(c?.confidence_level ?? 'low') as ConfidenceLevel} triggers={triggers} /></Td>
+      <Td>{wp.is_anchorage && passageId ? <Link to={`/passages/${passageId}/anchorage/${wp.id}`} onClick={(e) => e.stopPropagation()} className="text-[11px] text-accent">stay view</Link> : null}</Td>
     </tr>
   );
 }

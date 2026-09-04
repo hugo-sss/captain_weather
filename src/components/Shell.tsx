@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Anchor, LogOut, Ship } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { AttributionFooter } from '@/components/AttributionFooter.tsx';
+import { DisplayPrefsControl } from '@/components/DisplayPrefsControl.tsx';
 import { cn } from '@/lib/utils.ts';
 
 export function Shell() {
@@ -14,6 +15,7 @@ export function Shell() {
         <NavLink to="/passages" className={nav}>Passages</NavLink>
         <NavLink to="/vessels" className={nav}><span className="inline-flex items-center gap-1"><Ship className="h-3.5 w-3.5" /> Vessels</span></NavLink>
         <div className="ml-auto flex items-center gap-3 text-xs text-text-3">
+          <DisplayPrefsControl />
           <span className="hidden sm:inline">{user?.email}</span>
           <button onClick={() => void signOut()} className="inline-flex items-center gap-1 hover:text-text-1"><LogOut className="h-3.5 w-3.5" /> Sign out</button>
         </div>

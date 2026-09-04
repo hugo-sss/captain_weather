@@ -16,6 +16,7 @@ import { ModeTabs } from '@/components/dashboard/ModeTabs.tsx';
 import { fmtAge, fmtUtc } from '@/lib/time.ts';
 import { worstRisk } from '../../supabase/functions/_shared/risk.ts';
 import { passageConfidence } from '../../supabase/functions/_shared/confidence.ts';
+import { useDepartureWindows } from '@/hooks/useDepartureWindows.ts';
 
 export default function DashboardSimple() {
   const { id } = useParams();
@@ -26,6 +27,7 @@ export default function DashboardSimple() {
   const [encStatus, setEncStatus] = useState<string | null>(null);
   const conditions = useMemo(() => cond.data?.conditions ?? [], [cond.data]);
   const byWp = useMemo(() => new Map(conditions.map((c) => [c.waypoint_id, c])), [conditions]);
+  const dep = useDepartureWindows(data?.waypoints[0] ?? null, data?.vessel ?? null, cond.data?.targets ?? [], conditions[0]?.atmos_source ?? 'google_weathernext2_ensemble', conditions[0]?.comparison_source ?? 'ncep_gfs_global');
   if (loading || !data) return <div className="p-4 text-text-2">{loading ? 'Loading…' : 'Passage not found.'}</div>;
   const { passage, waypoints } = data;
   const flags = conditions.map((c) => c.risk_flag as RiskFlag);
@@ -36,7 +38,7 @@ export default function DashboardSimple() {
   const tiles = [
     { label: 'Confidence', value: confidence ? <ConfidenceDot level={confidence} withLabel /> : '—' },
     { label: 'Worst leg', value: worstLeg ? <span className="flex items-center gap-2"><RiskPill flag={worst} /> <span className="text-sm">{worstLeg.sequence}. {worstLeg.name}</span></span> : <RiskPill flag={worst} /> },
-    { label: 'Departure window', value: windows[0] ? <span className="num text-sm">{fmtUtc(windows[0].start)} → {fmtUtc(windows[0].end)}</span> : <span className="text-text-3 text-sm">none suggested</span> },
+    { label: 'Departure window', value: windows[0] ? <span className="num text-sm">{fmtUtc(windows[0].start)} → {fmtUtc(windows[0].end)} <span className="text-text-3 font-sans text-[11px]">briefing</span></span> : dep.windows[0] ? <span className="num text-sm">{fmtUtc(dep.windows[0].start)} → {fmtUtc(dep.windows[0].end)} <span className="text-text-3 font-sans text-[11px]">from raw series</span></span> : <span className="text-text-3 text-sm">none found</span> },
     { label: 'Re-check age', value: <span className="num text-sm">{cond.data?.run ? fmtAge(cond.data.run.completed_at ?? cond.data.run.created_at) : 'no run'}</span> },
   ];
   const mapWps = waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }));

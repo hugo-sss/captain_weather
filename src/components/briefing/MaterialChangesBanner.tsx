@@ -1,6 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
 
-export type MaterialChange = { waypoint_id?: string; waypoint_name?: string; sequence?: number; field: string; from: unknown; to: unknown; note?: string };
+import type { MaterialChange } from '../../../supabase/functions/_shared/material-changes.ts';
+export type { MaterialChange };
 
 /** Feature 12: shown before any numbers on a re-check. */
 export function MaterialChangesBanner({ changes }: { changes: MaterialChange[] | null | undefined }) {

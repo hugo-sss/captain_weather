@@ -24,6 +24,8 @@ import { TideSwellChart } from '@/components/dashboard/TideSwellChart.tsx';
 import { OverlayToggles } from '@/components/map/OverlayToggles.tsx';
 import { useBriefing } from '@/hooks/useBriefing.ts';
 import { useTideSwellSeries } from '@/hooks/useTideSwellSeries.ts';
+import { useDepartureWindows } from '@/hooks/useDepartureWindows.ts';
+import { DepartureWindows } from '@/components/dashboard/DepartureWindows.tsx';
 import { fmtAge, fmtHours, fmtLocal, fmtUtc } from '@/lib/time.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { toGpx } from '@/lib/gpx.ts';
@@ -50,6 +52,8 @@ export default function DashboardPro() {
   const br = useBriefing(id);
   const [encStatus, setEncStatus] = useState<string | null>(null);
   const tideSwell = useTideSwellSeries(selected ?? null, data?.vessel ?? null, cond.data?.targets ?? []);
+  const dep = useDepartureWindows(waypoints[0] ?? null, data?.vessel ?? null, cond.data?.targets ?? [], primarySource, comparisonSource);
+  const [showMapMobile, setShowMapMobile] = useState(false);
 
   if (loading || !data) return <div className="p-4 text-text-2">{loading ? 'Loading passage…' : 'Passage not found.'}</div>;
   const { passage, vessel } = data;
@@ -97,7 +101,7 @@ export default function DashboardPro() {
           <Button size="sm" variant="ghost" onClick={exportGpx}><Download className="h-3.5 w-3.5" /> GPX</Button>
           <Button size="sm" variant="ghost" asChild><Link to={`/passages/${passage.id}/edit`}>Edit</Link></Button>
           {passage.status === 'planned' && <Button size="sm" variant="outline" onClick={() => void setStatus('active')}>Mark active</Button>}
-          {passage.status === 'active' && <Button size="sm" variant="outline" onClick={() => void setStatus('completed')}>Mark completed</Button>}
+          {passage.status === 'active' && <Button size="sm" variant="outline" asChild><Link to={`/passages/${passage.id}/active`}>Monitor</Link></Button>}
         </div>
       </div>
       {(cond.busy || cond.error) && <div className={`px-4 py-1.5 text-xs ${cond.error ? 'bg-risk-red/10 text-risk-red' : 'bg-bg-2 text-text-2'}`}>{cond.error ?? cond.busy}</div>}
@@ -124,8 +128,9 @@ export default function DashboardPro() {
         <label className="ml-auto flex items-center gap-2"><span>Comparison columns</span><Switch checked={showComparison} onCheckedChange={setShowComparison} /></label>
       </div>
 
+      {prefs.narrative_emphasis >= 0.5 && <div className="p-4 border-b border-border"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>}
       {conditions.length === 0 && <div className="px-4 py-2 text-xs text-text-2 bg-bg-1">No conditions run yet. Plan targets, fetch, then compute. Rows below show the engine's ETAs only.</div>}
-      <LegTable waypoints={waypoints} conditions={conditions} maxWindKn={maxWind} selectedId={selected?.id ?? null} onSelect={setSelectedId} showComparison={showComparison} utcOffsetMin={prefs.local_utc_offset_min} />
+      <LegTable waypoints={waypoints} conditions={conditions} maxWindKn={maxWind} selectedId={selected?.id ?? null} onSelect={setSelectedId} showComparison={showComparison} utcOffsetMin={prefs.local_utc_offset_min} passageId={passage.id} />
 
       <div className="grid lg:grid-cols-2 gap-3 p-4 border-t border-border">
         <div className="space-y-3">
@@ -150,13 +155,15 @@ export default function DashboardPro() {
           </div>
           {selC && (selC.risk_reasons as string[]).length > 0 && <ul className="text-xs text-text-2 list-disc pl-4">{(selC.risk_reasons as string[]).map((r) => <li key={r}>{r}</li>)}</ul>}
         </div>
-        <div className="flex flex-col min-h-[320px]">
+        <div className="flex flex-col md:min-h-[320px]">
+          <button className="md:hidden text-left text-xs text-accent mb-1" onClick={() => setShowMapMobile((v) => !v)}>{showMapMobile ? 'Hide map' : 'Show map'}</button>
           <DisclaimerBar />
-          <div className="relative flex-1 min-h-[280px]">
+          <div className={`relative flex-1 min-h-[280px] ${showMapMobile ? '' : 'hidden md:block'}`}>
             <PassageMap waypoints={waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} selectedId={selected?.id ?? null} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk onSelect={setSelectedId} />
             <OverlayToggles prefs={prefs} update={update} encStatus={encStatus} />
           </div>
-          <div className="mt-3"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>
+          {prefs.narrative_emphasis < 0.5 && <div className="mt-3"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>}
+          <div className="mt-3"><DepartureWindows derived={dep.windows} sampled={dep.sampled} suggested={(br.briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? []} /></div>
         </div>
       </div>
     </div>

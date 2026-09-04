@@ -76,6 +76,15 @@ Without the CLI: `pnpm functions:bundle` writes one self-contained file per func
 
 `generate-briefing` builds the §8.5 user turn from the latest complete run, computes passage confidence by rules first (lowest waypoint level) and injects it with a plain-words statement, calls Claude with a frozen, versioned system prompt (`BRIEFING_PROMPT_VERSION`), structured JSON output and `fallbacks: "default"`, then runs the §8.3 banned-phrase regexes over every text field. One retry with the violations quoted, then it fails closed: the row is stored with `validator_passed = false` and the UI shows "Briefing unavailable. Raw data below." A refusal or truncated output fails closed the same way. When confidence is moderate or low and the model did not state it in the first two sentences, the rule-based statement is prepended by code (`validator_result.confidence_prepended = true`). The SOLAS V/34 standing statement is appended by code, never by the model. Views: Professional (default), Simplified (`/passages/:id/simple`), Comparison (`/passages/:id/comparison`).
 
+## Phase 3: anchorage, re-check, history, mobile
+
+- **Anchorage stay view** (`/passages/:id/anchorage/:wpId`): stay-window tiles from `anchorage_conditions` (median and worst-case wind, gust, predominant direction and veer arc, max wave and swell with direction, tide min/max/range, minimum UKC), the tide + swell chart over the stay, a 16-sector wind rose for the window, the manual exposure tag.
+- **Monitor** (`/passages/:id/active`): progress along the route, arrived toggles (re-anchor the engine from the last arrived waypoint), "Re-check conditions" (a `recheck` run pointing at the previous one, then a `remaining` briefing), material-changes banner before any numbers (from the briefing, or a client-side diff of run N vs N-1 with the same rules), previous briefing summary collapsed underneath.
+- **Passage history**: status, departure, worst flag of the latest run, last briefing confidence.
+- **Departure windows**: two sources, labelled. Rule-derived from the raw series at the first waypoint (p90 wind, gust and wave under 0.75× the limits, models in agreement, at least 3 contiguous hours), and the briefing model's suggestions. Neither is a recommendation.
+- **narrative_emphasis** (slider in the header, 0..1): at 0.5 and above the briefing card moves above the table on the Professional view. Ordering and emphasis only; every number stays reachable at every value.
+- **Mobile**: the leg table becomes stacked leg cards with the same fields, the map collapses behind a "Show map" strip, the builder goes single column.
+
 ## Licensing posture
 
 Open-Meteo non-commercial tier, CC-BY 4.0 attribution shown in the footer. WeatherNext real-time data under Google DeepMind's experimental terms (personal single-user use). TidesAtlas, OpenSeaMap: verify commercial terms before any v2. NOAA ENC: public domain, not certified for navigation.

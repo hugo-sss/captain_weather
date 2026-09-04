@@ -7,6 +7,8 @@ import PassageBuilder from '@/pages/PassageBuilder.tsx';
 import DashboardPro from '@/pages/DashboardPro.tsx';
 import DashboardSimple from '@/pages/DashboardSimple.tsx';
 import ComparisonView from '@/pages/ComparisonView.tsx';
+import ActivePassage from '@/pages/ActivePassage.tsx';
+import AnchorageStay from '@/pages/AnchorageStay.tsx';
 import VesselSettings from '@/pages/VesselSettings.tsx';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -29,6 +31,8 @@ export function AppRoutes() {
         <Route path="passages/:id" element={<DashboardPro />} />
         <Route path="passages/:id/simple" element={<DashboardSimple />} />
         <Route path="passages/:id/comparison" element={<ComparisonView />} />
+        <Route path="passages/:id/active" element={<ActivePassage />} />
+        <Route path="passages/:id/anchorage/:wpId" element={<AnchorageStay />} />
         <Route path="vessels" element={<VesselSettings />} />
         <Route path="vessels/:id" element={<VesselSettings />} />
       </Route>
