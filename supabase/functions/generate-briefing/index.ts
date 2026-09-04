@@ -1,7 +1,11 @@
 // generate-briefing: PRD §8. POST { passage_id, scope?: 'full' | 'remaining', run_id? }.
 // Confidence is computed by rules before the call and injected as a constraint; the
 // banned-phrase validator runs on every output (one retry, then fail closed); the
-// SOLAS V/34 statement is appended by code. A missing ANTHROPIC_API_KEY stores an
+// SOLAS V/34 statement is appended by code. The governance is provider-agnostic:
+// BRIEFING_PROVIDER selects the model backend. Default 'anthropic' (@anthropic-ai/sdk,
+// claude-opus-5, structured JSON, effort medium, server-side refusal fallback). Set
+// BRIEFING_PROVIDER=openai to use any OpenAI-compatible gateway (e.g. Synthetic, z.ai)
+// via BRIEFING_BASE_URL + BRIEFING_API_KEY + BRIEFING_MODEL. A missing key stores an
 // "unavailable" row so the UI can say why, with the raw data still shown.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.123.0';
 import { adminClient, callerOwnsPassage, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
@@ -18,6 +22,8 @@ import type { Violation } from '../_shared/language-rules.ts';
 
 type Body = { passage_id?: string; scope?: 'full' | 'remaining'; run_id?: string };
 type Row = Record<string, unknown>;
+type Turn = { role: 'user' | 'assistant'; content: string };
+type ModelResult = { text: string; servedModel: string; refused: boolean; refusalCategory: string | null; truncated: boolean };
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
 Deno.serve(async (req) => {
@@ -71,7 +77,6 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
     };
   });
 
-  // Previous briefing (for the diff) and material changes vs the run this one supersedes.
   const { data: prevBriefing } = await admin.from('passage_briefings').select('id, summary_text').eq('passage_id', passageId).is('superseded_by', null).order('generated_at', { ascending: false }).limit(1).maybeSingle();
   let changes: ReturnType<typeof materialChanges> = [];
   if (run.kind === 'recheck' && run.previous_run_id) {
@@ -86,20 +91,57 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
   const input = buildBriefingInput({ passageName: passage.name, departure: passage.actual_departure ?? passage.planned_departure, vesselName: vessel.name, thresholds, scope, legs, previousSummary: prevBriefing?.summary_text ?? null, materialChanges: changes });
   const inputHash = await sha256Hex(stableStringify(input));
   const promptVersion = Deno.env.get('BRIEFING_PROMPT_VERSION') ?? PROMPT_VERSION_DEFAULT;
-  const model = Deno.env.get('BRIEFING_MODEL') ?? DEFAULT_BRIEFING_MODEL;
+  const provider = (Deno.env.get('BRIEFING_PROVIDER') ?? 'anthropic').toLowerCase();
+  const openaiCompatible = provider === 'openai' || provider === 'openai-compatible' || provider === 'synthetic';
+  const model = Deno.env.get('BRIEFING_MODEL') ?? (openaiCompatible ? '' : DEFAULT_BRIEFING_MODEL);
   const base = {
     passage_id: passageId, run_id: run.id, scope, confidence_level: input.confidence_level, confidence_triggers: input.confidence_triggers,
     material_changes: run.kind === 'recheck' ? changes : null, is_recheck: run.kind === 'recheck', prompt_version: promptVersion, input_snapshot: input, input_hash: inputHash,
   };
+  const system = systemPrompt(promptVersion);
 
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey) {
-    const row = await store(admin, { ...base, model_used: 'unavailable', summary_text: null, recommended_action: null, suggested_departure_windows: null, disagreement_notes: null, validator_passed: false, validator_result: { passed: false, violations: [], attempts: 0, error: BRIEFING_UNAVAILABLE_NO_KEY } }, prevBriefing?.id);
-    return { ok: false, unavailable: BRIEFING_UNAVAILABLE_NO_KEY, briefing: row };
+  // --- model backend (provider-agnostic) -----------------------------------
+  const storeUnavailable = async (reason: string, modelUsed: string) => store(admin, { ...base, model_used: modelUsed, summary_text: null, recommended_action: null, suggested_departure_windows: null, disagreement_notes: null, validator_passed: false, validator_result: { passed: false, violations: [], attempts: 0, error: reason } }, prevBriefing?.id);
+
+  let callModel: (msgs: Turn[]) => Promise<ModelResult>;
+  if (openaiCompatible) {
+    const baseUrl = (Deno.env.get('BRIEFING_BASE_URL') ?? '').replace(/\/+$/, '');
+    const key = Deno.env.get('BRIEFING_API_KEY');
+    if (!baseUrl || !key || !model) {
+      const reason = `Briefing unavailable: set BRIEFING_BASE_URL, BRIEFING_API_KEY and BRIEFING_MODEL for provider "${provider}"`;
+      return { ok: false, unavailable: reason, briefing: await storeUnavailable(reason, 'unavailable') };
+    }
+    callModel = async (msgs) => {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, max_tokens: 4096, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, ...msgs] }),
+      });
+      if (!res.ok) throw new Error(`briefing model HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      const data = await res.json();
+      const choice = data?.choices?.[0];
+      // OpenAI-compatible gateways have no separate refusal channel; empty/junk output is caught by the validator and fails closed.
+      return { text: choice?.message?.content ?? '', servedModel: (data?.model as string) ?? model, refused: false, refusalCategory: null, truncated: choice?.finish_reason === 'length' };
+    };
+  } else {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) return { ok: false, unavailable: BRIEFING_UNAVAILABLE_NO_KEY, briefing: await storeUnavailable(BRIEFING_UNAVAILABLE_NO_KEY, 'unavailable') };
+    const client = new Anthropic({ apiKey });
+    callModel = async (msgs) => {
+      const res = await client.beta.messages.create({
+        model, max_tokens: 4096,
+        betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        messages: msgs as unknown as Anthropic.Beta.BetaMessageParam[],
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema: BRIEFING_OUTPUT_SCHEMA as unknown as Record<string, unknown> } },
+      });
+      const text = res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map((b) => b.text).join('');
+      return { text, servedModel: res.model, refused: res.stop_reason === 'refusal', refusalCategory: res.stop_details?.category ?? null, truncated: res.stop_reason === 'max_tokens' };
+    };
   }
 
-  const client = new Anthropic({ apiKey });
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: userTurn(input) }];
+  // --- generate, validate, retry once, then fail closed ---------------------
+  const messages: Turn[] = [{ role: 'user', content: userTurn(input) }];
   let attempts = 0;
   let violations: Violation[] = [];
   let output: BriefingOutput | null = null;
@@ -109,17 +151,11 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
 
   while (attempts < 2) {
     attempts += 1;
-    const res = await client.beta.messages.create({
-      model, max_tokens: 4096,
-      betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-      system: [{ type: 'text', text: systemPrompt(promptVersion), cache_control: { type: 'ephemeral' } }],
-      messages,
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: BRIEFING_OUTPUT_SCHEMA as unknown as Record<string, unknown> } },
-    });
-    servedModel = res.model;
-    if (res.stop_reason === 'refusal') { failure = `model refused (${res.stop_details?.category ?? 'unspecified'}); failing closed`; break; }
-    const text = res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map((b) => b.text).join('');
-    if (res.stop_reason === 'max_tokens') { failure = 'output truncated at max_tokens; failing closed'; break; }
+    const r = await callModel(messages);
+    servedModel = r.servedModel;
+    if (r.refused) { failure = `model refused (${r.refusalCategory ?? 'unspecified'}); failing closed`; break; }
+    const text = r.text;
+    if (r.truncated) { failure = 'output truncated at max_tokens; failing closed'; break; }
     const parsed = parseBriefingOutput(text);
     if (!parsed.ok) { failure = parsed.error; if (attempts < 2) { messages.push({ role: 'assistant', content: text }, { role: 'user', content: 'That was not valid JSON for the schema. Respond again with the full JSON only.' }); continue; } break; }
     violations = validateBriefing(parsed.output);

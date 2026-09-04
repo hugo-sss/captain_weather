@@ -98,8 +98,11 @@ export function buildBriefingInput(args: {
   return input;
 }
 
+/** Spelled-out shape for providers that do not take a JSON schema alongside the request (e.g. OpenAI-compatible gateways). */
+export const SCHEMA_HINT = 'Respond with a single JSON object and nothing else, with exactly these keys: summary_text (string), recommended_action (string), per_leg_notes (array of {sequence: integer, note: string}), suggested_departure_windows (array of {start: string, end: string, reason: string}), disagreement_notes (string or null).';
+
 export function userTurn(input: BriefingInput): string {
-  return `Write the briefing for this passage. Respond with JSON matching the schema.\n\n${JSON.stringify(input)}`;
+  return `Write the briefing for this passage. ${SCHEMA_HINT}\n\n${JSON.stringify(input)}`;
 }
 
 export function retryTurn(violations: Violation[]): string {
