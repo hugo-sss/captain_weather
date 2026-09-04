@@ -855,6 +855,8 @@ export type Database = {
     }
     Functions: {
       angular_delta_deg: { Args: { a: number; b: number }; Returns: number }
+      chart_features_geojson: { Args: { min_lon: number; min_lat: number; max_lon: number; max_lat: number; max_rows?: number }; Returns: Json }
+      cron_secret: { Args: never; Returns: string }
       nearest_target: { Args: { p_geom: unknown; p_layer: string }; Returns: number }
       owns_passage: { Args: { p_passage_id: string }; Returns: boolean }
       purge_forecast_cache: { Args: never; Returns: { atmospheric_deleted: number; marine_deleted: number; tidal_deleted: number }[] }

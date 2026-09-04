@@ -3,6 +3,7 @@ import { MapContainer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
 import { BaseTiles, OpenSeaMapLayer } from './ChartOverlays.tsx';
+import { NoaaEncLayer } from './NoaaEncLayer.tsx';
 import { RouteLine, type RoutePoint } from './RouteLine.tsx';
 import { WaypointMarker } from './WaypointMarker.tsx';
 import type { RiskFlag } from '@/types/domain.ts';
@@ -14,6 +15,8 @@ type Props = {
   editable?: boolean;
   selectedId?: string | null;
   showOpenSeaMap: boolean;
+  showNoaaEnc?: boolean;
+  onEncStatus?: (s: string) => void;
   colourByRisk?: boolean;
   onAddPin?: (lat: number, lon: number) => void;
   onMovePin?: (id: string, lat: number, lon: number) => void;
@@ -47,13 +50,14 @@ function GeomanControls({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function PassageMap({ waypoints, editable = false, selectedId, showOpenSeaMap, colourByRisk, onAddPin, onMovePin, onSelect, className }: Props) {
+export function PassageMap({ waypoints, editable = false, selectedId, showOpenSeaMap, showNoaaEnc = false, onEncStatus, colourByRisk, onAddPin, onMovePin, onSelect, className }: Props) {
   const centre: [number, number] = waypoints.length ? [waypoints[0].lat, waypoints[0].lon] : [7.8, 98.4];
   const route: RoutePoint[] = waypoints.map((w) => ({ lat: w.lat, lon: w.lon, risk: w.risk }));
   return (
     <MapContainer center={centre} zoom={8} className={className ?? 'h-full w-full'} zoomControl={true} attributionControl={true}>
       <BaseTiles />
       <OpenSeaMapLayer visible={showOpenSeaMap} />
+      <NoaaEncLayer visible={showNoaaEnc} onStatus={onEncStatus} />
       <RouteLine points={route} colourByRisk={colourByRisk} />
       {waypoints.map((w) => (
         <WaypointMarker key={w.id} lat={w.lat} lon={w.lon} sequence={w.sequence} name={w.name} isAnchorage={w.is_anchorage} risk={w.risk} selected={w.id === selectedId}

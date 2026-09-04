@@ -5,6 +5,8 @@ import Login from '@/pages/Login.tsx';
 import PassageHistory from '@/pages/PassageHistory.tsx';
 import PassageBuilder from '@/pages/PassageBuilder.tsx';
 import DashboardPro from '@/pages/DashboardPro.tsx';
+import DashboardSimple from '@/pages/DashboardSimple.tsx';
+import ComparisonView from '@/pages/ComparisonView.tsx';
 import VesselSettings from '@/pages/VesselSettings.tsx';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -25,6 +27,8 @@ export function AppRoutes() {
         <Route path="passages/new" element={<PassageBuilder />} />
         <Route path="passages/:id/edit" element={<PassageBuilder />} />
         <Route path="passages/:id" element={<DashboardPro />} />
+        <Route path="passages/:id/simple" element={<DashboardSimple />} />
+        <Route path="passages/:id/comparison" element={<ComparisonView />} />
         <Route path="vessels" element={<VesselSettings />} />
         <Route path="vessels/:id" element={<VesselSettings />} />
       </Route>

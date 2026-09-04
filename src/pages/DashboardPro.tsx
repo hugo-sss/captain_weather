@@ -18,7 +18,12 @@ import { PassageMap } from '@/components/map/PassageMap.tsx';
 import { DisclaimerBar } from '@/components/map/DisclaimerBar.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { ModeTabs } from '@/components/dashboard/ModeTabs.tsx';
+import { BriefingCard } from '@/components/briefing/BriefingCard.tsx';
+import { TideSwellChart } from '@/components/dashboard/TideSwellChart.tsx';
+import { OverlayToggles } from '@/components/map/OverlayToggles.tsx';
+import { useBriefing } from '@/hooks/useBriefing.ts';
+import { useTideSwellSeries } from '@/hooks/useTideSwellSeries.ts';
 import { fmtAge, fmtHours, fmtLocal, fmtUtc } from '@/lib/time.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { toGpx } from '@/lib/gpx.ts';
@@ -42,6 +47,9 @@ export default function DashboardPro() {
   const primarySource = selC?.atmos_source ?? 'google_weathernext2_ensemble';
   const comparisonSource = selC?.comparison_source ?? 'ncep_gfs_global';
   const band = useBandSeries(atmosTarget?.id ?? null, primarySource, comparisonSource);
+  const br = useBriefing(id);
+  const [encStatus, setEncStatus] = useState<string | null>(null);
+  const tideSwell = useTideSwellSeries(selected ?? null, data?.vessel ?? null, cond.data?.targets ?? []);
 
   if (loading || !data) return <div className="p-4 text-text-2">{loading ? 'Loading passage…' : 'Passage not found.'}</div>;
   const { passage, vessel } = data;
@@ -81,7 +89,7 @@ export default function DashboardPro() {
           <div className="text-base font-semibold leading-tight">{passage.name}</div>
           <div className="text-[11px] text-text-3">{vessel?.name ?? 'no vessel'} · {passage.status} · departs {fmtUtc(passage.actual_departure ?? passage.planned_departure)} · run {run ? `${run.status} ${fmtAge(run.completed_at ?? run.created_at)}` : 'none yet'}</div>
         </div>
-        <Tabs value="pro" className="ml-2"><TabsList><TabsTrigger value="pro">Professional</TabsTrigger><TabsTrigger value="simple" disabled title="Phase 2">Simplified</TabsTrigger><TabsTrigger value="cmp" disabled title="Phase 2">Comparison</TabsTrigger></TabsList></Tabs>
+        <ModeTabs passageId={passage.id} current="pro" />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" onClick={() => void cond.planTargets()} disabled={!!cond.busy}>Plan targets</Button>
           <Button size="sm" variant="secondary" onClick={() => void cond.fetchNow()} disabled={!!cond.busy} title="Calls ingest-tick for every layer with force=true"><RefreshCw className="h-3.5 w-3.5" /> Fetch now</Button>
@@ -124,6 +132,8 @@ export default function DashboardPro() {
           <div className="flex items-baseline gap-2"><span className="label">Selected</span><span className="font-medium">{selected ? `${selected.sequence}. ${selected.name ?? ''}` : '—'}</span>
             {selC && <span className="text-[11px] text-text-3">atmos init {fmtUtc(selC.atmos_init_time)} · marine init {fmtUtc(selC.marine_init_time)}</span>}</div>
           <BandChart points={band.points} limitKn={maxWind} etaIso={selC?.eta ?? selected?.eta} comparisonLabel={comparisonSource} />
+          <div className="label">Tide + swell at this waypoint (one axis, UKC line)</div>
+          <TideSwellChart points={tideSwell.points} minUkcM={num(vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={selC?.eta ?? selected?.eta} stayEndIso={selected?.is_anchorage ? selected.planned_departure_from_here : null} />
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <FieldCard label="Wind p50 / p90" value={selC?.wind_p50_kn !== null && selC?.wind_p50_kn !== undefined ? `${fmtNum(num(selC.wind_p50_kn), 0)} / ${fmtNum(num(selC.wind_p90_kn), 0)}` : null} unit="kn" reason="no atmospheric data within 55 km / ±6 h of ETA" />
             <FieldCard label="Gust p90" value={num(selC?.gust_p90_kn)} unit="kn" reason="no atmospheric data" />
@@ -143,9 +153,10 @@ export default function DashboardPro() {
         <div className="flex flex-col min-h-[320px]">
           <DisclaimerBar />
           <div className="relative flex-1 min-h-[280px]">
-            <PassageMap waypoints={waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} selectedId={selected?.id ?? null} showOpenSeaMap={prefs.show_openseamap} colourByRisk onSelect={setSelectedId} />
-            <div className="absolute top-2 right-2 z-[1000] rounded-md border border-border bg-bg-1/90 px-2 py-1 text-[11px] flex items-center gap-2"><span>OpenSeaMap</span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} /></div>
+            <PassageMap waypoints={waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} selectedId={selected?.id ?? null} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk onSelect={setSelectedId} />
+            <OverlayToggles prefs={prefs} update={update} encStatus={encStatus} />
           </div>
+          <div className="mt-3"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>
         </div>
       </div>
     </div>

@@ -18,14 +18,14 @@ Single-user, non-commercial. Not validated for navigation decisions. Supports, a
 | Layer | Choice | Where |
 |---|---|---|
 | Front end | React 18, Vite 7, TypeScript 5.9, Tailwind 3.4, shadcn-style primitives on Radix | `src/` |
-| Map | react-leaflet 4 + leaflet-geoman-free (pins, drags), OpenStreetMap base (desaturated for dark), OpenSeaMap overlay | `src/components/map/` |
+| Map | react-leaflet 4 + leaflet-geoman-free (pins, drags), OpenStreetMap base (desaturated for dark), OpenSeaMap overlay, NOAA ENC GeoJSON overlay from `chart_features` | `src/components/map/` |
 | Importers | `@tmcw/togeojson` (GPX), hand-rolled CSV, `@dnd-kit/sortable` for reordering | `src/lib/gpx.ts`, `src/lib/csv.ts` |
-| Charts | recharts (band chart; tide + swell pairing in Phase 2) | `src/components/dashboard/` |
+| Charts | recharts (band chart, tide + swell pairing with UKC line) | `src/components/dashboard/` |
 | Passage engine + rules | Pure TypeScript, shared by UI and edge functions | `src/lib/passage-engine/`, `supabase/functions/_shared/` |
 | Database + auth | Supabase project `jyhaavppeilbxzikuhfg` (eu-north-1), Postgres 17 + PostGIS 3.3, RLS on every table, email magic link | `supabase/migrations/` |
 | Scheduling | pg_cron + pg_net, jobs defined in SQL (0001 cron block) | `supabase/migrations/0001_init.sql` |
 | Ingestion + compute | Edge Functions (Deno): `plan-targets`, `ingest-tick`, `compute-conditions` | `supabase/functions/` |
-| Briefing | Edge Function `generate-briefing` via `@anthropic-ai/sdk` (Phase 2) | `supabase/functions/generate-briefing/` |
+| Briefing | Edge Function `generate-briefing` via `@anthropic-ai/sdk` 0.123 (`claude-opus-5` default, structured JSON output, effort medium, server-side refusal fallback) | `supabase/functions/generate-briefing/` |
 | Data sources | Open-Meteo Ensemble (`google_weathernext2_ensemble`, `ecmwf_ifs025_ensemble`), Open-Meteo Forecast (`ncep_gfs_global`), Open-Meteo Marine (`meteofrance_wave`, `meteofrance_currents`), TidesAtlas (WorldTides fallback) | `supabase/functions/_shared/adapters/` |
 | Tests | vitest (engine, stats, risk, confidence, language rules, adapters, targets) | `tests/` |
 
@@ -48,7 +48,7 @@ Never committed. `.env.example` lists names only. Deployed edge functions read t
 | Secret | Needed by | Without it |
 |---|---|---|
 | `TIDESATLAS_API_KEY` | `ingest-tick` (tidal layer) | Tidal targets record `not configured: TIDESATLAS_API_KEY not set`; the dashboard shows tide as a data gap with that reason; confidence gets `no_data_tidal`. |
-| `ANTHROPIC_API_KEY` | `generate-briefing` (Phase 2) | "Briefing unavailable: ANTHROPIC_API_KEY not set", raw data still shown. |
+| `ANTHROPIC_API_KEY` | `generate-briefing` | A briefing row is stored with `model_used = 'unavailable'` and the UI shows "Briefing unavailable: ANTHROPIC_API_KEY not set" above the raw data. |
 | `BRIEFING_MODEL` | `generate-briefing` | defaults to `claude-opus-5` |
 | `BRIEFING_PROMPT_VERSION` | `generate-briefing` | defaults to `v1` |
 | `CRON_SECRET` | `ingest-tick` | Optional. When unset, the function reads the Vault secret `cron_secret` through `public.cron_secret()` (service role only, migration 0004), which is the same value pg_cron sends. Setting it in the function env overrides that. |
@@ -71,6 +71,10 @@ Without the CLI: `pnpm functions:bundle` writes one self-contained file per func
 3. **ingest-tick** (pg_cron every 15 min, tidal daily; or "Fetch now" in the UI) responds 202 and processes up to 20 due targets per layer in `EdgeRuntime.waitUntil()`. GFS rows are keyed on the co-located atmospheric target so the `forecast_comparison` view lines up.
 4. **compute-conditions** creates a `conditions_runs` row, joins each waypoint ETA to the newest init of each layer (nearest hour, or interpolated when > 90 min away; circular for directions), computes disagreement (5 kn / 15°, gated at 8 kn), UKC, the risk flag and the rule-based confidence, and writes `waypoint_conditions` and `anchorage_conditions`.
 5. **Professional dashboard** (default view) reads those tables directly: KPI strip, leg table with p10/p50/p90 band, comparison columns, hatched "no data" cells with the reason, band chart per leg, risk-coloured map with the non-dismissible chart disclaimer.
+
+## Briefing governance (Phase 2)
+
+`generate-briefing` builds the §8.5 user turn from the latest complete run, computes passage confidence by rules first (lowest waypoint level) and injects it with a plain-words statement, calls Claude with a frozen, versioned system prompt (`BRIEFING_PROMPT_VERSION`), structured JSON output and `fallbacks: "default"`, then runs the §8.3 banned-phrase regexes over every text field. One retry with the violations quoted, then it fails closed: the row is stored with `validator_passed = false` and the UI shows "Briefing unavailable. Raw data below." A refusal or truncated output fails closed the same way. When confidence is moderate or low and the model did not state it in the first two sentences, the rule-based statement is prepended by code (`validator_result.confidence_prepended = true`). The SOLAS V/34 standing statement is appended by code, never by the model. Views: Professional (default), Simplified (`/passages/:id/simple`), Comparison (`/passages/:id/comparison`).
 
 ## Licensing posture
 
