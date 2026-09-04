@@ -11,3 +11,6 @@ supabase/.temp
 supabase/functions/**/bundle
 .DS_Store
 *.log
+
+# Claude Code agent worktrees (ephemeral, isolated subagent workspaces)
+.claude/worktrees/
