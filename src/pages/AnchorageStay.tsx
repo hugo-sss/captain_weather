@@ -1,6 +1,7 @@
 // Anchorage stay view (PRD §9.5 screen 7): summary tiles, tide + swell paired chart, wind rose for the window, exposure tag.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Anchor, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase.ts';
 import { usePassage } from '@/hooks/usePassage.ts';
 import { useConditions } from '@/hooks/useConditions.ts';
@@ -11,6 +12,9 @@ import { StayWindowView } from '@/components/anchorage/StayWindowView.tsx';
 import { WindRose } from '@/components/anchorage/WindRose.tsx';
 import { TideSwellChart } from '@/components/dashboard/TideSwellChart.tsx';
 import { ModeTabs } from '@/components/dashboard/ModeTabs.tsx';
+import { PageHeader, Sep } from '@/components/PageHeader.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { PageSkeleton } from '@/components/ui/skeleton.tsx';
 import { windRose } from '../../supabase/functions/_shared/departure-windows.ts';
 import { fmtUtc } from '@/lib/time.ts';
 
@@ -39,26 +43,31 @@ export default function AnchorageStay() {
     })();
     return () => { cancelled = true; };
   }, [atmos, stayStart, stayEnd, cond.data]);
-  if (loading || !data) return <div className="p-4 text-text-2">Loading…</div>;
-  if (!wp) return <div className="p-4 text-text-2">Waypoint not found.</div>;
+  if (loading) return <PageSkeleton variant="table" />;
+  if (!data) return <div className="p-6 text-sm text-text-2">Passage not found.</div>;
+  if (!wp) return <div className="p-6 text-sm text-text-2">Waypoint not found.</div>;
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <div className="px-4 py-2 border-b border-border bg-bg-1 flex flex-wrap items-center gap-3">
-        <div><div className="text-base font-semibold leading-tight">Anchorage: {wp.sequence}. {wp.name}</div><div className="text-[11px] text-text-3">{data.passage.name} · ETA {fmtUtc(wp.eta)} · stay end {fmtUtc(wp.planned_departure_from_here)}{!wp.is_anchorage && ' · not marked as an anchorage'}</div></div>
-        <ModeTabs passageId={data.passage.id} current="pro" />
-        <Link to={`/passages/${data.passage.id}`} className="ml-auto text-xs text-accent">Back to the table</Link>
-      </div>
-      <div className="p-4 grid gap-4 lg:grid-cols-[1fr_260px]">
-        <div className="space-y-4">
+      <PageHeader
+        title={<span className="inline-flex items-center gap-2"><Anchor className="h-4 w-4 text-accent" /><span className="num text-text-3 font-normal">{wp.sequence}.</span>{wp.name}</span>}
+        meta={<><span>{data.passage.name}</span><Sep /><span>ETA <span className="num text-text-2">{fmtUtc(wp.eta)}</span></span><Sep /><span>stay end <span className="num text-text-2">{fmtUtc(wp.planned_departure_from_here)}</span></span>{!wp.is_anchorage && <><Sep /><span className="text-risk-amber">not marked as an anchorage</span></>}</>}
+        tabs={<ModeTabs passageId={data.passage.id} current="pro" />}
+        actions={<Button size="sm" variant="ghost" asChild><Link to={`/passages/${data.passage.id}`}><ArrowLeft className="h-3.5 w-3.5" /> Back to the table</Link></Button>}
+      />
+      <div className="p-4 grid gap-4 lg:grid-cols-[1fr_300px]">
+        <div className="space-y-4 min-w-0">
           <StayWindowView a={anch} />
-          <div><div className="label mb-1">Tide + swell over the stay (one axis, UKC line, datum {tideSwell.datum ?? 'unknown'})</div>
-            <TideSwellChart points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} /></div>
+          <TideSwellChart title="Tide + swell over the stay" meta={`UKC on the right axis · datum ${tideSwell.datum ?? 'unknown'}`} points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} />
         </div>
-        <div className="rounded-lg border border-border bg-bg-1 p-3">
-          <div className="label mb-2">Wind rose for the window (from, p50)</div>
-          <WindRose bins={windRose(hours)} />
-          <div className="text-[11px] text-text-3 mt-2">{hours.length} forecast hours · exposure: {wp.anchorage_exposure_tag ?? 'not set'} (manual in v1)</div>
-        </div>
+        <aside className="panel p-3 self-start">
+          <div className="label text-text-2 mb-1">Wind rose <span className="text-text-3">· stay window</span></div>
+          <div className="text-[11px] text-text-3 mb-3">direction the wind blows from, p50 · colour is mean speed</div>
+          <WindRose bins={windRose(hours)} size={236} />
+          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-[11px] text-text-3">
+            <span><span className="num text-text-2">{hours.length}</span> forecast hours</span>
+            <span>exposure <span className="inline-flex h-[18px] items-center rounded-sm border border-border bg-bg-2 px-1.5 uppercase tracking-[0.05em] text-text-2 ml-1">{wp.anchorage_exposure_tag ?? 'not set'}</span></span>
+          </div>
+        </aside>
       </div>
     </div>
   );
