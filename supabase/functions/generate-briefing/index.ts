@@ -26,7 +26,7 @@ type Turn = { role: 'user' | 'assistant'; content: string };
 type ModelResult = { text: string; servedModel: string; refused: boolean; refusalCategory: string | null; truncated: boolean };
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
-type BriefingConfig = { provider: string; model: string | undefined; baseUrl: string | undefined; key: string | undefined; promptVersion: string };
+type BriefingConfig = { provider: string; model: string | undefined; baseUrl: string | undefined; key: string | undefined; promptVersion: string; reasoningEffort: string | undefined };
 // Config comes from edge-function env first; whatever is missing is filled from
 // the briefing_config() RPC (api key from Vault, provider/base_url/model from
 // app_settings), so no function env secret is required. Mirrors the cron and
@@ -37,19 +37,21 @@ async function resolveBriefingConfig(admin: Admin): Promise<BriefingConfig> {
   let model = e('BRIEFING_MODEL');
   let baseUrl = e('BRIEFING_BASE_URL');
   let key = e('BRIEFING_API_KEY');
+  let reasoningEffort = e('BRIEFING_REASONING_EFFORT');
   const promptVersion = e('BRIEFING_PROMPT_VERSION') ?? PROMPT_VERSION_DEFAULT;
-  if (!provider || !model || !baseUrl || !key) {
+  if (!provider || !model || !baseUrl || !key || !reasoningEffort) {
     try {
       const { data } = await admin.rpc('briefing_config');
-      const cfg = (data ?? null) as { api_key?: string | null; settings?: { provider?: string; base_url?: string; model?: string } | null } | null;
+      const cfg = (data ?? null) as { api_key?: string | null; settings?: { provider?: string; base_url?: string; model?: string; reasoning_effort?: string } | null } | null;
       const s = cfg?.settings ?? null;
       provider = provider ?? (s?.provider || undefined);
       model = model ?? (s?.model || undefined);
       baseUrl = baseUrl ?? (s?.base_url || undefined);
       key = key ?? (cfg?.api_key || undefined);
+      reasoningEffort = reasoningEffort ?? (s?.reasoning_effort || undefined);
     } catch { /* RPC absent (e.g. no Vault): fall through to env-only */ }
   }
-  return { provider: (provider ?? 'anthropic').toLowerCase(), model, baseUrl, key, promptVersion };
+  return { provider: (provider ?? 'anthropic').toLowerCase(), model, baseUrl, key, promptVersion, reasoningEffort };
 }
 
 Deno.serve(async (req) => {
@@ -180,7 +182,12 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
         // Reasoning models (e.g. GLM via Synthetic) emit reasoning tokens before
         // the JSON, counted toward the completion, so budget generously or the
         // output truncates mid-object and the pipeline fails closed.
-        body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, ...msgs] }),
+        body: JSON.stringify({
+          model, max_tokens: 8192, temperature: 0.3, response_format: { type: 'json_object' },
+          // Reasoning effort is provider-specific; "none" on GLM-5.2 keeps the budget for the answer.
+          ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
+          messages: [{ role: 'system', content: system }, ...msgs],
+        }),
       });
       if (!res.ok) throw new Error(`briefing model HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const data = await res.json();

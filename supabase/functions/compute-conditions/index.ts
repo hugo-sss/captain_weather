@@ -217,14 +217,19 @@ async function evaluatePoint(admin: Admin, s: Settings, idx: TargetIndex, passag
       });
       sourcesUsed.atmospheric = { source: s.sources.atmospheric_primary, init_time };
 
-      // Gust fallback (Phase 5): the primary ensemble may not carry gusts. Secondary ensemble, then the
-      // comparison model, then a labelled estimate from the p90 wind. The provenance is stored.
-      if (out.gust_p90_kn === null) {
+      // Gust and CAPE fallback (Phase 5): the primary ensemble may carry neither gusts nor CAPE.
+      // Secondary ensemble, then the comparison model, then (gusts only) a labelled estimate from
+      // the p90 wind. Gust provenance is stored in gust_source; CAPE keeps the same order.
+      if (out.gust_p90_kn === null || out.cape_p50_jkg === null) {
         for (const src of [s.sources.atmospheric_secondary, s.sources.comparison]) {
+          if (out.gust_p90_kn !== null && out.cape_p50_jkg !== null) break;
           const alt = await latestRowsAround(admin, 'forecast_atmospheric', at.target.id, src, eta);
           const ap = pickAtTime(alt.rows, eta, ['wind_dir_mean_deg']);
-          const g = ap ? n(ap.row.gust_p90_kn) : null;
-          if (g !== null) { out.gust_p90_kn = g; out.gust_source = src; break; }
+          if (!ap) continue;
+          const g = n(ap.row.gust_p90_kn);
+          if (out.gust_p90_kn === null && g !== null) { out.gust_p90_kn = g; out.gust_source = src; }
+          const cape = n(ap.row.cape_p50_jkg);
+          if (out.cape_p50_jkg === null && cape !== null) out.cape_p50_jkg = cape;
         }
         if (out.gust_p90_kn === null && n(out.wind_p90_kn) !== null) {
           const factor = s.risk_defaults.gust_factor_if_missing;
@@ -333,15 +338,17 @@ async function anchorageFor(admin: Admin, s: Settings, idx: TargetIndex, passage
   const windP50 = median(nums(atmos, 'wind_p50_kn'));
   const windMaxP90 = max(nums(atmos, 'wind_p90_kn'));
   let gustMaxP90 = max(nums(atmos, 'gust_p90_kn'));
-  if (gustMaxP90 === null && at && at.distanceKm <= maxKm) {
+  let capeMax = max(nums(atmos, 'cape_p50_jkg'));
+  if ((gustMaxP90 === null || capeMax === null) && at && at.distanceKm <= maxKm) {
     const alt = await rowsInWindow(admin, 'forecast_atmospheric', at.target.id, s.sources.atmospheric_secondary, stayStart, stayEnd);
-    gustMaxP90 = max(nums(alt, 'gust_p90_kn'));
+    if (gustMaxP90 === null) gustMaxP90 = max(nums(alt, 'gust_p90_kn'));
+    if (capeMax === null) capeMax = max(nums(alt, 'cape_p50_jkg'));
     if (gustMaxP90 === null && windMaxP90 !== null) gustMaxP90 = r1(windMaxP90 * s.risk_defaults.gust_factor_if_missing);
   }
   const dirs = nums(atmos, 'wind_dir_mean_deg');
   const tideMin = min(nums(tidal, 'tide_height_m')), tideMax = max(nums(tidal, 'tide_height_m'));
   const swellMax = max(nums(marine, 'swell_height_m'));
-  const squall = squallRisk(max(nums(atmos, 'cape_p50_jkg')), max(nums(atmos, 'precip_prob_pct')), s.squall);
+  const squall = squallRisk(capeMax, max(nums(atmos, 'precip_prob_pct')), s.squall);
   // Minimum UKC over the stay: lowest tide paired with the largest swell in the window (conservative).
   const ukc = ukcEstimate({ draftM: n(vessel.draft_m), chartedDepthM: n(w.charted_depth_m), tideHeightM: tideMin, swellHeightM: swellMax, isAnchorage: true });
   const risk = riskFlag({ windP50Kn: windP50, windP90Kn: windMaxP90, gustP90Kn: gustMaxP90, waveHeightM: max(nums(marine, 'wave_height_m')), currentSpeedKn: max(nums(marine, 'current_speed_kn')), ukcEstimateM: ukc.ukcEstimateM, sourceDisagreement: false, atmosphericGap: atmos.length === 0 }, th, s.risk_defaults.amber_fraction_of_limit);
