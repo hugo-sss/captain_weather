@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-0: #0B1220;
+  --bg-1: #111A2E;
+  --bg-2: #182338;
+  --border: #23304A;
+  --text-1: #E6EDF7;
+  --text-2: #9AA8C0;
+  --text-3: #66748F;
+  --accent: #2DD4BF;
+  --risk-green: #34D399;
+  --risk-amber: #FBBF24;
+  --risk-red: #F87171;
+  --flag-violet: #A78BFA;
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-bg-0 text-text-1 font-sans text-[14px] antialiased; }
+  * { @apply border-border; }
+  .num { @apply font-mono; font-variant-numeric: tabular-nums; }
+  .label { @apply text-label uppercase text-text-3 font-medium; }
+  .gap-hatch { @apply bg-gap; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+}
+
+/* Leaflet dark treatment: desaturate the OSM base so colour is reserved for data. */
+.leaflet-container { background: #0B1220; }
+.leaflet-tile-pane .osm-dark { filter: invert(1) hue-rotate(180deg) brightness(0.72) contrast(0.9) saturate(0.35); }
+.leaflet-control-attribution { background: rgba(17,26,46,0.85) !important; color: #9AA8C0 !important; font-size: 10px; }
+.leaflet-control-attribution a { color: #2DD4BF !important; }
+.leaflet-bar a { background: #182338 !important; color: #E6EDF7 !important; border-color: #23304A !important; }

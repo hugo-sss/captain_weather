@@ -1,0 +1,10 @@
+{
+  "description": "A waypoint 7 days (168 h) beyond the atmospheric init time. Must yield low confidence with trigger lead_time_gt_120h, stated in words in the first two sentences of any briefing.",
+  "atmos_init_time": "2026-09-04T00:00:00Z",
+  "eta": "2026-09-11T00:00:00Z",
+  "lead_time_hours": 168,
+  "wind_p10_kn": 8,
+  "wind_p50_kn": 12,
+  "wind_p90_kn": 16,
+  "expect": { "confidence_level": "low", "triggers": ["lead_time_gt_120h"] }
+}
