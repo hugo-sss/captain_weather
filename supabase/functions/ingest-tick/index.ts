@@ -14,7 +14,15 @@ import { MODEL_CYCLE_HOURS } from '../_shared/adapters/openMeteoInit.ts';
 
 const LAYERS: Layer[] = ['atmospheric', 'comparison', 'marine', 'tidal'];
 const BATCH = 20;
+// Ensemble calls are heavy (up to 64 members × 8 variables × N days) and Open-Meteo
+// budgets them per minute, so the atmospheric layer takes fewer targets per tick and
+// paces its calls. Cron runs every 15 min, so a passage still fills within the hour.
+const ATMOS_BATCH = 8;
+const PACE_MS = 1_200;
 const HOUR = 3_600_000;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** A 429 is a per-minute limit, so retry on the next tick rather than sitting out 30 min. */
+const backoffMs = (errs: string[]) => (errs.some((e) => /HTTP 429/.test(e)) ? 5 * 60_000 : 30 * 60_000);
 
 // TidesAtlas key: env first, else the Vault secret via public.tidesatlas_api_key()
 // (migration 0006), mirroring the cron-secret fallback. Cached for the warm isolate.
@@ -69,7 +77,7 @@ async function runBatch(layers: Layer[], force: boolean) {
   const settings = await loadSettings(admin);
   const summary: Record<string, unknown> = {};
   for (const layer of layers) {
-    let q = admin.from('ingest_targets').select('*').eq('layer', layer).eq('active', true).order('next_fetch_at').limit(BATCH);
+    let q = admin.from('ingest_targets').select('*').eq('layer', layer).eq('active', true).order('next_fetch_at').limit(layer === 'atmospheric' ? ATMOS_BATCH : BATCH);
     if (!force) q = q.lt('next_fetch_at', new Date().toISOString());
     const { data: targets, error } = await q;
     if (error) { summary[layer] = { error: error.message }; continue; }
@@ -103,6 +111,7 @@ async function processTarget(admin: Admin, settings: Settings, layer: Layer, t: 
         const r = await makeEnsembleAdapter(src)(target, range, env);
         const n = await upsertAtmospheric(admin, r, outcome, src);
         if (r.ok) { lastInit = src === sources[0] ? r.init_time : lastInit; outcome[`${src}_rows`] = n; } else errors.push(r.error);
+        await sleep(PACE_MS);
       }
       next = nextCycleFetch(sources[0], lastInit);
     } else if (layer === 'comparison') {
@@ -136,10 +145,10 @@ async function processTarget(admin: Admin, settings: Settings, layer: Layer, t: 
         await admin.from('ingest_targets').update({ last_error: `not configured: ${r.error}`, next_fetch_at: new Date(now + 6 * HOUR).toISOString(), last_fetched_at: new Date(now).toISOString() }).eq('id', t.id);
         return { ...outcome, not_configured: r.error };
       } else errors.push(r.error);
-      next = errors.length ? new Date(now + 30 * 60_000).toISOString() : new Date(now + 24 * HOUR).toISOString();
+      next = errors.length ? new Date(now + backoffMs(errors)).toISOString() : new Date(now + 24 * HOUR).toISOString();
     }
     if (errors.length) {
-      await admin.from('ingest_targets').update({ last_error: errors.join(' | '), next_fetch_at: new Date(now + 30 * 60_000).toISOString(), last_fetched_at: new Date(now).toISOString() }).eq('id', t.id);
+      await admin.from('ingest_targets').update({ last_error: errors.join(' | '), next_fetch_at: new Date(now + backoffMs(errors)).toISOString(), last_fetched_at: new Date(now).toISOString() }).eq('id', t.id);
       return { ...outcome, errors };
     }
     await admin.from('ingest_targets').update({ last_error: null, last_fetched_at: new Date(now).toISOString(), last_init_time: lastInit, next_fetch_at: next }).eq('id', t.id);
