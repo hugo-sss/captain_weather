@@ -11,12 +11,20 @@ export const ENSEMBLE_API = 'https://ensemble-api.open-meteo.com';
 const FULL_HOURLY = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'precipitation', 'pressure_msl', 'cape', 'visibility', 'temperature_2m'];
 const CORE_HOURLY = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'precipitation', 'pressure_msl', 'temperature_2m'];
 
-export function ensembleUrl(lat: number, lon: number, model: string, hourly: string[] = FULL_HOURLY): string {
+export function ensembleUrl(lat: number, lon: number, model: string, hourly: string[] = FULL_HOURLY, days = 10): string {
   const q = new URLSearchParams({
     latitude: lat.toFixed(3), longitude: lon.toFixed(3), models: model,
-    hourly: hourly.join(','), wind_speed_unit: 'kn', forecast_days: '10', timezone: 'UTC',
+    hourly: hourly.join(','), wind_speed_unit: 'kn', forecast_days: String(days), timezone: 'UTC',
   });
   return `${ENSEMBLE_API}/v1/ensemble?${q}`;
+}
+
+/** Forecast days this target actually needs: up to the passage horizon, never a blanket 10.
+ *  Open-Meteo weights ensemble calls by volume (members × variables × days), so sizing the
+ *  request to the horizon is what keeps a whole passage inside the per-minute budget. */
+export function forecastDaysFor(range: FetchRange, now: Date): number {
+  const days = Math.ceil((Date.parse(range.end) - now.getTime()) / 86_400_000) + 1;
+  return Math.min(10, Math.max(1, Number.isFinite(days) ? days : 10));
 }
 
 /** Collect control + perturbed members for a variable: `v`, `v_member01` … `v_memberNN`. */
@@ -79,12 +87,13 @@ export function rowsFromEnsembleResponse(
 export function makeEnsembleAdapter(model: string) {
   return async (target: IngestTarget, range: FetchRange, env: AdapterEnv): Promise<AdapterResult<AtmosphericRow>> => {
     const notes: string[] = [];
-    let { status, body } = await getJson(env, ensembleUrl(target.grid_lat, target.grid_lon, model));
+    const days = forecastDaysFor(range, env.now());
+    let { status, body } = await getJson(env, ensembleUrl(target.grid_lat, target.grid_lon, model, FULL_HOURLY, days));
     let resp = body as OpenMeteoResponse | null;
     if (status === 400 && resp?.reason) {
       // A variable the model does not carry (e.g. cape/visibility) makes the whole call fail: retry with the core set.
       notes.push(`full variable set rejected (${resp.reason}); retried with core variables`);
-      ({ status, body } = await getJson(env, ensembleUrl(target.grid_lat, target.grid_lon, model, CORE_HOURLY)));
+      ({ status, body } = await getJson(env, ensembleUrl(target.grid_lat, target.grid_lon, model, CORE_HOURLY, days)));
       resp = body as OpenMeteoResponse | null;
     }
     if (status !== 200 || !resp || resp.error) return { ok: false, error: `open-meteo ensemble ${model}: HTTP ${status} ${resp?.reason ?? ''}`.trim() };
