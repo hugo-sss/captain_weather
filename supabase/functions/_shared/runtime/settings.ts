@@ -1,6 +1,7 @@
 import type { Admin } from './supabaseAdmin.ts';
 import { DEFAULT_CONFIDENCE_RULES, type ConfidenceRules } from '../confidence.ts';
 import { DEFAULT_DISAGREEMENT_THRESHOLDS, type DisagreementThresholds } from '../risk.ts';
+import { DEFAULT_LEG_SAMPLING, DEFAULT_SPEED_LOSS, DEFAULT_SQUALL, type LegSampling, type SpeedLossSettings, type SquallSettings } from '../leg-profile.ts';
 
 export type Sources = { atmospheric_primary: string; atmospheric_secondary: string; comparison: string; marine: string; tidal: string };
 export type Settings = {
@@ -10,6 +11,11 @@ export type Settings = {
   sources: Sources;
   cache_retention_days: number;
   ingest_grid: { spacing_deg: number; corridor_km: number; horizon_hours: number };
+  // Phase 5 (migration 0008 seeds the same defaults into app_settings)
+  leg_sampling: LegSampling;
+  speed_loss: SpeedLossSettings;
+  squall: SquallSettings;
+  alerts: { email: string | null };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,6 +25,10 @@ export const DEFAULT_SETTINGS: Settings = {
   sources: { atmospheric_primary: 'google_weathernext2_ensemble', atmospheric_secondary: 'ecmwf_ifs025_ensemble', comparison: 'ncep_gfs_global', marine: 'open-meteo-marine', tidal: 'tidesatlas' },
   cache_retention_days: 3,
   ingest_grid: { spacing_deg: 0.25, corridor_km: 25, horizon_hours: 240 },
+  leg_sampling: DEFAULT_LEG_SAMPLING,
+  speed_loss: DEFAULT_SPEED_LOSS,
+  squall: DEFAULT_SQUALL,
+  alerts: { email: null },
 };
 
 export async function loadSettings(admin: Admin): Promise<Settings> {
