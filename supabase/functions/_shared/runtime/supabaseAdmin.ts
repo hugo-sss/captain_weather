@@ -28,6 +28,22 @@ export async function callerUserId(req: Request): Promise<string | null> {
   return data.user.id;
 }
 
+/** True when the request carries the cron secret (env CRON_SECRET, else Vault cron_secret()).
+ *  Lets pg_cron / server-side jobs run compute and briefing for scheduled re-checks; the
+ *  single-user model means a valid secret is as trusted as the owner's session. */
+export async function cronAuthorized(req: Request): Promise<boolean> {
+  const given = req.headers.get('x-cron-secret');
+  if (!given) return false;
+  let secret = Deno.env.get('CRON_SECRET') ?? null;
+  if (!secret) {
+    try {
+      const { data } = await adminClient().rpc('cron_secret');
+      secret = typeof data === 'string' && data.length ? data : null;
+    } catch { secret = null; }
+  }
+  return !!secret && given === secret;
+}
+
 /** True when the caller owns the passage (checked through RLS as the caller). */
 export async function callerOwnsPassage(req: Request, passageId: string): Promise<boolean> {
   const c = userClient(req);

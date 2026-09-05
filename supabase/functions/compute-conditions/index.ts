@@ -1,6 +1,6 @@
 // compute-conditions: PRD §7. POST { passage_id, kind: 'initial' | 'recheck', current_position? }.
 // One conditions_runs row per invocation; never left 'running'.
-import { adminClient, callerOwnsPassage, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
+import { adminClient, callerOwnsPassage, cronAuthorized, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
 import { json, preflight, readJson } from '../_shared/runtime/http.ts';
 import { loadSettings, type Settings } from '../_shared/runtime/settings.ts';
 import { coerceVessel, engineFor, loadPassage, persistEngine, persistTargetPlan, type PassageRow, type VesselRow, type WaypointRow } from '../_shared/runtime/planTargets.ts';
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const body = await readJson<Body>(req);
   if (!body.passage_id) return json({ error: 'passage_id required' }, 400);
   const kind = body.kind === 'recheck' ? 'recheck' : 'initial';
-  if (!(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
+  if (!(await cronAuthorized(req)) && !(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
 
   const admin = adminClient();
   const { data: prev } = await admin.from('conditions_runs').select('id').eq('passage_id', body.passage_id).eq('status', 'complete').order('created_at', { ascending: false }).limit(1).maybeSingle();

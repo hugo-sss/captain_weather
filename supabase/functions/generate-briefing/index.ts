@@ -8,7 +8,7 @@
 // via BRIEFING_BASE_URL + BRIEFING_API_KEY + BRIEFING_MODEL. A missing key stores an
 // "unavailable" row so the UI can say why, with the raw data still shown.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.123.0';
-import { adminClient, callerOwnsPassage, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
+import { adminClient, callerOwnsPassage, cronAuthorized, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
 import { json, preflight, readJson } from '../_shared/runtime/http.ts';
 import { loadPassage, type WaypointRow } from '../_shared/runtime/planTargets.ts';
 import {
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   const body = await readJson<Body>(req);
   if (!body.passage_id) return json({ error: 'passage_id required' }, 400);
-  if (!(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
+  if (!(await cronAuthorized(req)) && !(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
   try {
     const admin = adminClient();
     const result = await generate(admin, body.passage_id, body.scope === 'remaining' ? 'remaining' : 'full', body.run_id);
