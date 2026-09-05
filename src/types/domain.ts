@@ -11,12 +11,18 @@ export type WaypointConditionsRow = Tables['waypoint_conditions']['Row'];
 export type AnchorageConditionsRow = Tables['anchorage_conditions']['Row'];
 export type BriefingRow = Tables['passage_briefings']['Row'];
 export type IngestTargetRow = Tables['ingest_targets']['Row'];
+export type LegConditionsRow = Tables['leg_conditions']['Row'];
+export type NotificationRow = Tables['notifications']['Row'];
 export type ForecastComparisonRow = Database['public']['Views']['forecast_comparison']['Row'];
 
 export type RiskFlag = 'green' | 'amber' | 'red' | 'unknown';
 export type ConfidenceLevel = 'high' | 'moderate' | 'low';
 export type PassageStatus = 'planned' | 'active' | 'completed' | 'archived';
 export type ExposureTag = 'sheltered' | 'partial' | 'exposed';
+export type SquallRisk = 'none' | 'possible' | 'likely';
+/** Where a charted depth came from. A GEBCO grid value is never presented as charted. */
+export type DepthSource = 'user' | 'gebco';
+export type NotificationKind = 'material_change' | 'recheck' | 'recheck_failed' | 'briefing';
 
 /** Editable waypoint in the builder before it is saved. */
 export type DraftWaypoint = {
@@ -31,6 +37,7 @@ export type DraftWaypoint = {
   anchorage_exposure_tag: ExposureTag | null;
   is_complex_coastal: boolean;
   charted_depth_m: number | null;
+  charted_depth_source?: DepthSource | null;
   source: 'map' | 'gpx' | 'csv' | 'api';
 };
 
