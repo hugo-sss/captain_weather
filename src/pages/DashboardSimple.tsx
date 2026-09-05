@@ -23,6 +23,10 @@ import { fmtAge, fmtUtc } from '@/lib/time.ts';
 import { worstRisk } from '../../supabase/functions/_shared/risk.ts';
 import { passageConfidence } from '../../supabase/functions/_shared/confidence.ts';
 import { useDepartureWindows } from '@/hooks/useDepartureWindows.ts';
+import { useLegConditions, useLegProfiles } from '@/hooks/useLegConditions.ts';
+import { buildRouteSegments, worstPointAlongPassage } from '@/lib/leg-profile.ts';
+import { SquallBadge } from '@/components/dashboard/SquallBadge.tsx';
+import { OfflineBanner } from '@/components/OfflineBanner.tsx';
 import { cn } from '@/lib/utils.ts';
 
 export default function DashboardSimple() {
@@ -35,6 +39,11 @@ export default function DashboardSimple() {
   const [showMapMobile, setShowMapMobile] = useState(false);
   const conditions = useMemo(() => cond.data?.conditions ?? [], [cond.data]);
   const byWp = useMemo(() => new Map(conditions.map((c) => [c.waypoint_id, c])), [conditions]);
+  const wpsMemo = useMemo(() => data?.waypoints ?? [], [data]);
+  const legRows = useLegConditions(cond.data?.run?.id ?? null, id);
+  const legs = useLegProfiles(legRows.rows, wpsMemo);
+  const segments = useMemo(() => (legs.length ? buildRouteSegments(wpsMemo, legs, (wpId) => (byWp.get(wpId)?.risk_flag as RiskFlag | undefined) ?? null) : null), [legs, wpsMemo, byWp]);
+  const worstPt = useMemo(() => worstPointAlongPassage(legs), [legs]);
   const dep = useDepartureWindows(data?.waypoints[0] ?? null, data?.vessel ?? null, cond.data?.targets ?? [], conditions[0]?.atmos_source ?? 'google_weathernext2_ensemble', conditions[0]?.comparison_source ?? 'ncep_gfs_global');
   if (loading) return <PageSkeleton variant="map" />;
   if (!data) return <div className="p-6 text-sm text-text-2">Passage not found.</div>;
@@ -50,18 +59,20 @@ export default function DashboardSimple() {
     { label: 'Confidence', value: confidence ? <ConfidenceDot level={confidence} withLabel /> : <span className="text-text-3">—</span>, sub: confidence ? 'lowest across legs' : 'no run yet' },
     { label: 'Worst leg', value: <RiskPill flag={worst} />, sub: worstLeg ? <><span className="num">{worstLeg.sequence}.</span> {worstLeg.name}</> : undefined },
     { label: 'Departure window', value: win ? <span className="num text-[13px]">{fmtUtc(win.start)} → {fmtUtc(win.end)}</span> : <span className="text-text-3 text-sm">none found</span>, sub: win ? (windows[0] ? 'from the briefing' : 'from the raw series') : undefined },
-    { label: 'Re-check age', value: <span className="num text-[15px]">{cond.data?.run ? fmtAge(cond.data.run.completed_at ?? cond.data.run.created_at) : 'no run'}</span>, sub: cond.data?.run ? `${cond.data.run.kind} run` : undefined },
+    { label: 'Re-check age', value: <span className="num text-[15px]">{cond.data?.run ? fmtAge(cond.data.run.completed_at ?? cond.data.run.created_at) : 'no run'}</span>, sub: cond.data?.run ? `${cond.data.run.kind} run${cond.data.run.trigger === 'scheduled' ? ' · scheduled' : ''}` : undefined },
   ];
+  const worstWhy = worstPt ? (worstPt.point.riskReasons[0] ?? (worstPt.point.risk === 'unknown' ? `no data: ${worstPt.point.dataGaps.join(', ') || 'layers missing'}` : `wind p90 ${Math.round(worstPt.point.windP90 ?? 0)} kn, Hs ${worstPt.point.waveHs === null ? '—' : worstPt.point.waveHs.toFixed(1)} m`)) : null;
   const mapWps = waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }));
   const map = (h: string) => (
     <div className={cn('relative', h)}>
-      <PassageMap waypoints={mapWps} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk />
+      <PassageMap waypoints={mapWps} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk segments={segments} />
       <OverlayToggles prefs={prefs} update={update} encStatus={encStatus} />
-      <RiskLegend />
+      <RiskLegend segmented={!!segments} />
     </div>
   );
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      <OfflineBanner />
       <PageHeader
         title={passage.name}
         meta={<>{vessel?.name ?? 'no vessel'}<Sep /><StatusBadge status={passage.status} /><Sep /><span>departs <span className="num text-text-2">{fmtUtc(passage.actual_departure ?? passage.planned_departure)}</span></span></>}
@@ -92,6 +103,21 @@ export default function DashboardSimple() {
               </div>
             ))}
           </div>
+          {worstPt && (
+            <div className="tile px-3 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <div className="min-w-0">
+                <div className="label">Worst point along the passage</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                  <RiskPill flag={worstPt.point.risk} reasons={worstPt.point.riskReasons} />
+                  <span className="font-medium truncate">{worstPt.leg.from?.name ?? ''} → {worstPt.leg.to?.name ?? ''}</span>
+                  <span className="num text-text-2">{worstPt.point.distanceNm.toFixed(1)} nm in · {fmtUtc(worstPt.point.eta)}</span>
+                  <SquallBadge risk={worstPt.point.squall} capeJkg={worstPt.point.capeJkg} precipPct={worstPt.point.precipPct} size="sm" />
+                </div>
+                <div className="text-[11px] text-text-3 mt-0.5 num">{worstWhy}</div>
+              </div>
+              <Link to={`/passages/${passage.id}`} className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline underline-offset-2">Leg profile <ArrowUpRight className="h-3 w-3" /></Link>
+            </div>
+          )}
           <div className="border-t border-border pt-4">
             <BriefingCard bare hero briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} tableHref={`/passages/${passage.id}`} />
           </div>

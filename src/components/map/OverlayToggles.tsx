@@ -12,12 +12,13 @@ export function OverlayToggles({ prefs, update, encStatus }: { prefs: DisplayPre
   );
 }
 
-/** Route colour key for risk-coloured maps. */
-export function RiskLegend() {
-  const items = [['#34D399', 'green'], ['#FBBF24', 'amber'], ['#F87171', 'red'], ['#2DD4BF', 'no run']];
+/** Route colour key for risk-coloured maps. With along-leg segments the line changes colour between points; `no data` is dashed. */
+export function RiskLegend({ segmented }: { segmented?: boolean }) {
+  const items: [string, string, string?][] = [['#34D399', 'green'], ['#FBBF24', 'amber'], ['#F87171', 'red'], ...(segmented ? [['#66748F', 'no data', 'dashed'] as [string, string, string]] : []), ['#2DD4BF', segmented ? 'no leg points' : 'no run']];
   return (
     <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-border bg-bg-1/95 backdrop-blur-sm px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-text-2 flex items-center gap-3">
-      {items.map(([c, l]) => <span key={l} className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4 rounded" style={{ background: c }} />{l}</span>)}
+      {segmented && <span className="normal-case tracking-normal text-text-3">route by point</span>}
+      {items.map(([c, l, d]) => <span key={l} className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4 rounded" style={d ? { background: `repeating-linear-gradient(90deg, ${c} 0 3px, transparent 3px 6px)` } : { background: c }} />{l}</span>)}
     </div>
   );
 }

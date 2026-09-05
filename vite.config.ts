@@ -15,6 +15,7 @@ export default defineConfig({
         ? [
             { find: /^@\/lib\/supabase\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockSupabase.ts') },
             { find: /^@\/lib\/weather-browse\/source\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockBrowseSource.ts') },
+            { find: /^@\/lib\/gebco-source\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockGebco.ts') },
           ]
         : []),
       { find: '@', replacement: path.resolve(__dirname, 'src') },

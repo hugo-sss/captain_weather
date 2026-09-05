@@ -26,7 +26,7 @@ type Turn = { role: 'user' | 'assistant'; content: string };
 type ModelResult = { text: string; servedModel: string; refused: boolean; refusalCategory: string | null; truncated: boolean };
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
-type BriefingConfig = { provider: string; model: string | undefined; baseUrl: string | undefined; key: string | undefined; promptVersion: string };
+type BriefingConfig = { provider: string; model: string | undefined; baseUrl: string | undefined; key: string | undefined; promptVersion: string; reasoningEffort: string | undefined };
 // Config comes from edge-function env first; whatever is missing is filled from
 // the briefing_config() RPC (api key from Vault, provider/base_url/model from
 // app_settings), so no function env secret is required. Mirrors the cron and
@@ -37,19 +37,21 @@ async function resolveBriefingConfig(admin: Admin): Promise<BriefingConfig> {
   let model = e('BRIEFING_MODEL');
   let baseUrl = e('BRIEFING_BASE_URL');
   let key = e('BRIEFING_API_KEY');
+  let reasoningEffort = e('BRIEFING_REASONING_EFFORT');
   const promptVersion = e('BRIEFING_PROMPT_VERSION') ?? PROMPT_VERSION_DEFAULT;
-  if (!provider || !model || !baseUrl || !key) {
+  if (!provider || !model || !baseUrl || !key || !reasoningEffort) {
     try {
       const { data } = await admin.rpc('briefing_config');
-      const cfg = (data ?? null) as { api_key?: string | null; settings?: { provider?: string; base_url?: string; model?: string } | null } | null;
+      const cfg = (data ?? null) as { api_key?: string | null; settings?: { provider?: string; base_url?: string; model?: string; reasoning_effort?: string } | null } | null;
       const s = cfg?.settings ?? null;
       provider = provider ?? (s?.provider || undefined);
       model = model ?? (s?.model || undefined);
       baseUrl = baseUrl ?? (s?.base_url || undefined);
       key = key ?? (cfg?.api_key || undefined);
+      reasoningEffort = reasoningEffort ?? (s?.reasoning_effort || undefined);
     } catch { /* RPC absent (e.g. no Vault): fall through to env-only */ }
   }
-  return { provider: (provider ?? 'anthropic').toLowerCase(), model, baseUrl, key, promptVersion };
+  return { provider: (provider ?? 'anthropic').toLowerCase(), model, baseUrl, key, promptVersion, reasoningEffort };
 }
 
 Deno.serve(async (req) => {
@@ -75,9 +77,10 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
     : admin.from('conditions_runs').select('*').eq('passage_id', passageId).eq('status', 'complete').order('created_at', { ascending: false }).limit(1).maybeSingle();
   const { data: run } = await runQ;
   if (!run) throw new Error('no complete conditions run for this passage; compute conditions first');
-  const [{ data: conds }, { data: anchs }] = await Promise.all([
+  const [{ data: conds }, { data: anchs }, { data: legRows }] = await Promise.all([
     admin.from('waypoint_conditions').select('*').eq('run_id', run.id),
     admin.from('anchorage_conditions').select('*').eq('run_id', run.id),
+    admin.from('leg_conditions').select('*').eq('run_id', run.id),
   ]);
   const byWp = new Map<string, WaypointRow>(waypoints.map((w) => [w.id, w]));
   const anchBy = new Map<string, Row>(((anchs ?? []) as Row[]).map((a) => [a.waypoint_id as string, a]));
@@ -86,6 +89,37 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
     .filter((x): x is { c: Row; w: WaypointRow } => !!x.w && (scope === 'full' || !x.w.arrived))
     .sort((a, b) => a.w.sequence - b.w.sequence);
   if (inScope.length === 0) throw new Error('no waypoint conditions in scope');
+
+  // Phase 5: along-leg profile per destination waypoint from the virtual points in leg_conditions.
+  const byTo = new Map<string, Row[]>();
+  for (const l of (legRows ?? []) as Row[]) {
+    const k = l.to_waypoint_id as string;
+    if (!byTo.has(k)) byTo.set(k, []);
+    byTo.get(k)!.push(l);
+  }
+  const rank: Record<string, number> = { green: 0, unknown: 1, amber: 2, red: 3 };
+  const profileFor = (wpId: string): BriefingLeg['profile'] | undefined => {
+    const pts = (byTo.get(wpId) ?? []).sort((a, b) => Number(a.seq) - Number(b.seq));
+    if (pts.length === 0) return undefined;
+    const mx = (k: string) => { const v = pts.map((p) => n(p[k])).filter((x): x is number => x !== null); return v.length ? Math.max(...v) : null; };
+    let worst: Row | null = null;
+    let worstFlag: RiskFlag = 'green';
+    for (const p of pts) {
+      const f = String(p.risk_flag) as RiskFlag;
+      if ((rank[f] ?? 0) > (rank[worstFlag] ?? 0)) worstFlag = f;
+      if (!worst || (rank[f] ?? 0) > (rank[String(worst.risk_flag)] ?? 0) || ((rank[f] ?? 0) === (rank[String(worst.risk_flag)] ?? 0) && (n(p.wind_p90_kn) ?? 0) > (n(worst.wind_p90_kn) ?? 0))) worst = p;
+    }
+    const squalls = pts.map((p) => String(p.squall_risk ?? 'none'));
+    const squall = squalls.includes('likely') ? 'likely' : squalls.includes('possible') ? 'possible' : 'none';
+    return {
+      points: pts.length, speed_loss_pct: n(pts[0].speed_loss_pct),
+      max_wind_p90_kn: mx('wind_p90_kn'), max_gust_p90_kn: mx('gust_p90_kn'), max_wave_m: mx('wave_height_m'), max_current_kn: mx('current_speed_kn'),
+      worst_risk: worstFlag, squall, disagreement_points: pts.filter((p) => !!p.source_disagreement).length,
+      gap_points: pts.filter((p) => Array.isArray(p.data_gaps) && (p.data_gaps as unknown[]).length > 0).length,
+      lowest_confidence: (['low', 'moderate', 'high'] as const).find((l) => pts.some((p) => p.confidence_level === l)) ?? 'low',
+      worst_at: worst ? { fraction_pct: Math.round(Number(worst.fraction) * 100), eta: String(worst.eta), lat: Number(worst.lat), lon: Number(worst.lon), risk_flag: String(worst.risk_flag) as RiskFlag, wind_p90_kn: n(worst.wind_p90_kn), wave_height_m: n(worst.wave_height_m), reasons: Array.isArray(worst.risk_reasons) ? (worst.risk_reasons as string[]) : [] } : null,
+    };
+  };
 
   const legs: BriefingLeg[] = inScope.map(({ c, w }) => {
     const a = anchBy.get(w.id);
@@ -97,6 +131,11 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
       tide: { height: n(c.tide_height_m), state: (c.tide_state as string | null) ?? null, datum: (c.tide_datum as string | null) ?? null },
       current: { speed: n(c.current_speed_kn), sets_toward: n(c.current_dir_deg) },
       ukc: { estimate: n(c.ukc_estimate_m), basis: (c.ukc_basis as string | null) ?? null },
+      squall_risk: ((c.squall_risk as string | null) ?? 'none') as 'none' | 'possible' | 'likely',
+      gust_source: (c.gust_source as string | null) ?? null,
+      speed_loss_pct: n(c.speed_loss_pct),
+      eta_planned: (c.eta_planned as string | null) ?? null,
+      profile: profileFor(w.id),
       risk_flag: c.risk_flag as RiskFlag, risk_reasons: (c.risk_reasons as string[]) ?? [],
       confidence_level: c.confidence_level as ConfidenceLevel, confidence_triggers: (c.confidence_triggers as string[]) ?? [],
       ...(a ? { anchorage: { stay_start: a.stay_start as string, stay_end: a.stay_end as string, wind_p50: n(a.wind_p50_kn), wind_max_p90: n(a.wind_max_p90_kn), gust_max_p90: n(a.gust_max_p90_kn), dir_predominant: n(a.wind_dir_predominant_deg), dir_range: n(a.wind_dir_range_deg), wave_max: n(a.wave_max_m), swell_max: n(a.swell_max_m), tide_min: n(a.tide_min_m), tide_max: n(a.tide_max_m), min_ukc: n(a.min_ukc_estimate_m), exposure: (a.exposure_tag as string | null) ?? null, risk_flag: a.risk_flag as RiskFlag } } : {}),
@@ -145,7 +184,12 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
         // Reasoning models (e.g. GLM via Synthetic) emit reasoning tokens before
         // the JSON, counted toward the completion, so budget generously or the
         // output truncates mid-object and the pipeline fails closed.
-        body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, ...msgs] }),
+        body: JSON.stringify({
+          model, max_tokens: 8192, temperature: 0.3, response_format: { type: 'json_object' },
+          // Reasoning effort is provider-specific; "none" on GLM-5.2 keeps the budget for the answer.
+          ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
+          messages: [{ role: 'system', content: system }, ...msgs],
+        }),
       });
       if (!res.ok) throw new Error(`briefing model HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const data = await res.json();

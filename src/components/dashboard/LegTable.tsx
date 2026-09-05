@@ -1,20 +1,22 @@
 import type { WaypointConditionsRow, WaypointRow } from '@/types/domain.ts';
+import type { LegProfileData } from '@/lib/leg-profile.ts';
 import { LegRow } from './LegRow.tsx';
 import { LegCard } from './LegCard.tsx';
 import { cn } from '@/lib/utils.ts';
 
-type Props = { waypoints: WaypointRow[]; conditions: WaypointConditionsRow[]; maxWindKn: number | null; selectedId: string | null; onSelect: (id: string) => void; showComparison: boolean; utcOffsetMin: number | null; passageId?: string };
+type Props = { waypoints: WaypointRow[]; conditions: WaypointConditionsRow[]; maxWindKn: number | null; selectedId: string | null; onSelect: (id: string) => void; showComparison: boolean; utcOffsetMin: number | null; passageId?: string; /** Along-leg profiles (Phase 5), matched to the waypoint each leg ends at. */ legs?: LegProfileData[] };
 
 const Th = ({ children, title, className }: { children?: React.ReactNode; title?: string; className?: string }) => <th scope="col" title={title} className={className}>{children}</th>;
 const Group = ({ children, span, className }: { children?: React.ReactNode; span: number; className?: string }) => <th scope="colgroup" colSpan={span} className={cn(className)}>{children}</th>;
 
 /** The Professional table: every number, one row per leg. Collapses to stacked cards with the same fields below md. */
-export function LegTable({ waypoints, conditions, maxWindKn, selectedId, onSelect, showComparison, utcOffsetMin, passageId }: Props) {
+export function LegTable({ waypoints, conditions, maxWindKn, selectedId, onSelect, showComparison, utcOffsetMin, passageId, legs = [] }: Props) {
   const byWp = new Map(conditions.map((c) => [c.waypoint_id, c]));
+  const legInto = new Map(legs.map((l) => [l.toId, l]));
   return (
     <>
       <div className="md:hidden p-3 space-y-2">
-        {waypoints.map((wp) => <LegCard key={wp.id} wp={wp} c={byWp.get(wp.id) ?? null} selected={selectedId === wp.id} onSelect={() => onSelect(wp.id)} passageId={passageId} utcOffsetMin={utcOffsetMin} />)}
+        {waypoints.map((wp) => <LegCard key={wp.id} wp={wp} c={byWp.get(wp.id) ?? null} selected={selectedId === wp.id} onSelect={() => onSelect(wp.id)} passageId={passageId} utcOffsetMin={utcOffsetMin} maxWindKn={maxWindKn} leg={legInto.get(wp.id) ?? null} />)}
       </div>
       <div className="hidden md:block overflow-x-auto">
         <table className="data-table min-w-full">
@@ -25,6 +27,7 @@ export function LegTable({ waypoints, conditions, maxWindKn, selectedId, onSelec
               <Group span={2}>Sea</Group>
               <Group span={3}>Tide · current · UKC</Group>
               {showComparison && <Group span={1} className="text-flag-violet/80">Comparison</Group>}
+              <Group span={1}>Along leg</Group>
               <Group span={3}>Assessment</Group>
             </tr>
             <tr>
@@ -33,12 +36,13 @@ export function LegTable({ waypoints, conditions, maxWindKn, selectedId, onSelec
               <Th title="Significant wave height and peak period">Wave</Th><Th title="Swell height and direction from">Swell</Th>
               <Th title="Tide height above the stated datum, from the tidal adapter">Tide</Th><Th title="Current speed and direction it sets TOWARD (SMOC, weak in straits)">Current</Th><Th className="r" title="Under-keel clearance estimate; hover for basis">UKC</Th>
               {showComparison && <Th title="Comparison model wind and its delta against the primary p50">GFS wind · Δ</Th>}
-              <Th title="Primary vs comparison model agreement">Models</Th><Th>Risk</Th><Th className="text-center" title="Confidence per waypoint">Conf</Th>
+              <Th title="Along the leg into this waypoint: max wind p90, max Hs, worst point risk, squall, sea-state ETA delta">max p90 · max Hs · worst</Th>
+              <Th title="Primary vs comparison model agreement">Models</Th><Th title="Risk pill; squall risk beside it when possible or likely">Risk · squall</Th><Th className="text-center" title="Confidence per waypoint">Conf</Th>
             </tr>
           </thead>
           <tbody>
             {waypoints.map((wp) => (
-              <LegRow key={wp.id} wp={wp} c={byWp.get(wp.id) ?? null} maxWindKn={maxWindKn} selected={selectedId === wp.id} onSelect={() => onSelect(wp.id)} showComparison={showComparison} utcOffsetMin={utcOffsetMin} passageId={passageId} />
+              <LegRow key={wp.id} wp={wp} c={byWp.get(wp.id) ?? null} maxWindKn={maxWindKn} selected={selectedId === wp.id} onSelect={() => onSelect(wp.id)} showComparison={showComparison} utcOffsetMin={utcOffsetMin} passageId={passageId} leg={legInto.get(wp.id) ?? null} />
             ))}
           </tbody>
         </table>

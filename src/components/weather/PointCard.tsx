@@ -1,6 +1,10 @@
 // The Windy popup. Raw model values for the scrubber's time step, labelled with model + run + lead
-// time and lat/lon. Numbers only. No tide here: Open-Meteo sea level is not tide (product rule).
-import { CircleDashed, Pin, X } from 'lucide-react';
+// time and lat/lon. Numbers only. Tide comes only from a station via the point-tide function on an
+// explicit click ("Tide here"): Open-Meteo sea level is never presented as tide (product rule).
+import { CircleDashed, Pin, Waves, X } from 'lucide-react';
+import { usePointTide } from '@/hooks/usePointTide.ts';
+import { useNow } from '@/hooks/useNow.ts';
+import { TideChart } from '@/components/dashboard/TideChart.tsx';
 import type { BrowseVar, PointForecast, RunInfo } from '@/lib/weather-browse/types.ts';
 import { MODEL_LABEL } from '@/lib/weather-browse/types.ts';
 import { windColor } from '@/lib/risk-colors.ts';
@@ -86,12 +90,12 @@ export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHo
   const wind = v?.wind_speed_10m ?? null;
   const style: React.CSSProperties = mobile ? {} : { left: x + 18, top: y + 18 };
   const flipX = !mobile && typeof window !== 'undefined' && x + 18 + 320 > window.innerWidth;
-  const flipY = !mobile && typeof window !== 'undefined' && y + 18 + 420 > window.innerHeight;
+  const flipY = !mobile && typeof window !== 'undefined' && y + 18 + 560 > window.innerHeight;
   if (flipX) { style.left = undefined; style.right = window.innerWidth - x + 18; }
   if (flipY) { style.top = undefined; style.bottom = window.innerHeight - y + 18; }
   return (
     <div role="dialog" aria-label={`Weather at ${lat.toFixed(2)}, ${lon.toFixed(2)}`}
-      className={cn('z-[1150] rounded-lg border border-border bg-bg-1/[0.97] backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.55)] text-sm', mobile ? 'fixed left-2 right-2 bottom-[92px] max-h-[62vh] overflow-y-auto' : 'fixed w-[316px] pointer-events-auto')}
+      className={cn('z-[1150] rounded-lg border border-border bg-bg-1/[0.97] backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.55)] text-sm', mobile ? 'fixed left-2 right-2 bottom-[92px] max-h-[62vh] overflow-y-auto' : 'fixed w-[316px] max-h-[calc(100vh-24px)] overflow-y-auto pointer-events-auto')}
       style={style} onMouseDown={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-border">
         <div className="min-w-0 flex-1">
@@ -115,11 +119,39 @@ export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHo
           </div>
         )}
         {point ? <Sparkline point={point} timeIso={timeIso} /> : pointLoading ? <Skeleton className="h-9" /> : null}
-        <div className="text-[10.5px] text-text-3 border-t border-border pt-1.5 flex items-center justify-between gap-2">
-          <span>Tide: from a station once you drop a pin here</span>
-          {pointLoading && point === null && <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" aria-label="loading" />}
-        </div>
+        <TideHere lat={lat} lon={lon} loadingPoint={pointLoading && point === null} />
       </div>
+    </div>
+  );
+}
+
+/** Station tide for this point, fetched only on click (credits) and cached per station for the session. */
+function TideHere({ lat, lon, loadingPoint }: { lat: number; lon: number; loadingPoint: boolean }) {
+  const tide = usePointTide(lat, lon, 2);
+  const nowMs = useNow(60_000);
+  const d = tide.data;
+  return (
+    <div className="border-t border-border pt-1.5 space-y-1.5">
+      {!d ? (
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" onClick={() => void tide.load()} disabled={tide.loading} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2 text-[11px] font-medium text-text-1 hover:border-text-3/60 disabled:opacity-60" aria-label="Load station tide for this point">
+            <Waves className={cn('h-3.5 w-3.5 text-accent', tide.loading && 'animate-pulse')} />{tide.loading ? 'Finding the nearest station…' : 'Tide here'}
+          </button>
+          <span className="text-[10px] text-text-3 text-right">nearest station · uses a tide credit</span>
+          {loadingPoint && <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" aria-label="loading" />}
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-baseline gap-2 text-[10.5px]">
+            <span className="label">Tide</span>
+            <span className="text-text-1 truncate">{d.station.name}</span>
+            <span className="num text-text-3 shrink-0">{d.station.distance_km.toFixed(1)} km away · datum {d.datum}{d.cached ? ' · cached' : ''}</span>
+          </div>
+          <TideChart bare compact series={d.series.map((s) => ({ t: Date.parse(s.time), height: s.height_m, state: s.state }))} extremes={d.extremes.map((e) => ({ t: Date.parse(e.time), height: e.height_m, type: e.type }))} datum={d.datum} nowMs={nowMs} className="mt-1" />
+          <div className="text-[10px] text-text-3 mt-0.5">station {d.station.id} · TidesAtlas · not a model sea level</div>
+        </div>
+      )}
+      {tide.error && <p className="text-[11px] text-risk-red">{tide.error}</p>}
     </div>
   );
 }
