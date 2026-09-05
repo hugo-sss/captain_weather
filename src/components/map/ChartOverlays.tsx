@@ -7,5 +7,7 @@ export function OpenSeaMapLayer({ visible }: { visible: boolean }) {
 }
 
 export function BaseTiles() {
-  return <TileLayer className="osm-dark" url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' maxZoom={19} />;
+  // CARTO dark basemap: a native dark tileset (no invert filter needed) and far more
+  // tolerant of hotlinking than tile.openstreetmap.org, which refuses many app requests.
+  return <TileLayer subdomains="abcd" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors &copy; CARTO' maxZoom={20} />;
 }
