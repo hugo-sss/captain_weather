@@ -76,6 +76,8 @@
 }
 .leaflet-tile-pane .osm-dark { filter: invert(1) hue-rotate(180deg) brightness(0.72) contrast(0.9) saturate(0.35); }
 .leaflet-control-attribution { background: rgba(17, 26, 46, 0.85) !important; color: #66748F !important; font-size: 10px; }
+/* Attribution at the top right on the weather map: wraps instead of widening the page on phones. */
+.leaflet-top .leaflet-control-attribution { margin: 0; border-radius: 0 0 0 6px; padding: 1px 6px; max-width: min(70vw, 420px); white-space: normal; text-align: right; line-height: 1.25; }
 .leaflet-control-attribution a { color: #9AA8C0 !important; }
 .leaflet-bar { border: 1px solid #23304A !important; box-shadow: none !important; border-radius: 6px !important; overflow: hidden; }
 .leaflet-bar a { background: #111A2E !important; color: #E6EDF7 !important; border-color: #23304A !important; width: 28px !important; height: 28px !important; line-height: 28px !important; }
