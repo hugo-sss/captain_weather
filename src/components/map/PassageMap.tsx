@@ -7,6 +7,7 @@ import { NoaaEncLayer } from './NoaaEncLayer.tsx';
 import { RouteLine, type RoutePoint } from './RouteLine.tsx';
 import { WaypointMarker } from './WaypointMarker.tsx';
 import type { RiskFlag } from '@/types/domain.ts';
+import type { RouteSegment } from '@/lib/leg-profile.ts';
 
 export type MapWaypoint = { id: string; sequence: number; name: string | null; lat: number; lon: number; is_anchorage: boolean; risk?: RiskFlag | null };
 
@@ -18,6 +19,8 @@ type Props = {
   showNoaaEnc?: boolean;
   onEncStatus?: (s: string) => void;
   colourByRisk?: boolean;
+  /** Along-leg segments (Phase 5): when supplied the route is coloured between consecutive leg points. */
+  segments?: RouteSegment[] | null;
   onAddPin?: (lat: number, lon: number) => void;
   onMovePin?: (id: string, lat: number, lon: number) => void;
   onSelect?: (id: string) => void;
@@ -50,7 +53,7 @@ function GeomanControls({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function PassageMap({ waypoints, editable = false, selectedId, showOpenSeaMap, showNoaaEnc = false, onEncStatus, colourByRisk, onAddPin, onMovePin, onSelect, className }: Props) {
+export function PassageMap({ waypoints, editable = false, selectedId, showOpenSeaMap, showNoaaEnc = false, onEncStatus, colourByRisk, segments, onAddPin, onMovePin, onSelect, className }: Props) {
   const centre: [number, number] = waypoints.length ? [waypoints[0].lat, waypoints[0].lon] : [7.8, 98.4];
   const route: RoutePoint[] = waypoints.map((w) => ({ lat: w.lat, lon: w.lon, risk: w.risk }));
   return (
@@ -58,7 +61,7 @@ export function PassageMap({ waypoints, editable = false, selectedId, showOpenSe
       <BaseTiles />
       <OpenSeaMapLayer visible={showOpenSeaMap} />
       <NoaaEncLayer visible={showNoaaEnc} onStatus={onEncStatus} />
-      <RouteLine points={route} colourByRisk={colourByRisk} />
+      <RouteLine points={route} colourByRisk={colourByRisk} segments={segments} />
       {waypoints.map((w) => (
         <WaypointMarker key={w.id} lat={w.lat} lon={w.lon} sequence={w.sequence} name={w.name} isAnchorage={w.is_anchorage} risk={w.risk} selected={w.id === selectedId}
           draggable={editable} onDrag={(lat, lon) => onMovePin?.(w.id, lat, lon)} onClick={() => onSelect?.(w.id)} />

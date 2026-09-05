@@ -43,3 +43,10 @@ export const toLocalInput = (iso: string | null | undefined): string => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 export const fromLocalInput = (v: string): string | null => (v ? new Date(v).toISOString() : null);
+
+/** "UTC+07" / "UTC−03:30" for a minutes offset. */
+export function fmtOffset(offsetMin: number): string {
+  const sign = offsetMin >= 0 ? '+' : '−';
+  const hh = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0'), mm = Math.abs(offsetMin) % 60;
+  return `UTC${sign}${hh}${mm ? ':' + String(mm).padStart(2, '0') : ''}`;
+}

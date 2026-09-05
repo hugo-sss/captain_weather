@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invokeFunction, supabase } from '@/lib/supabase.ts';
 import type { BriefingRow } from '@/types/domain.ts';
+import { readBundle, writeBundlePart } from '@/lib/offline-cache.ts';
+import { reportOffline } from './useOffline.ts';
 
 export type BriefingResult = { briefing: BriefingRow | null; unavailable_reason?: string };
 
@@ -10,8 +12,14 @@ export function useBriefing(passageId: string | undefined) {
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(async () => {
     if (!passageId) return;
-    const { data } = await supabase.from('passage_briefings').select('*').eq('passage_id', passageId).is('superseded_by', null).order('generated_at', { ascending: false }).limit(1).maybeSingle();
+    const { data, error: err } = await supabase.from('passage_briefings').select('*').eq('passage_id', passageId).is('superseded_by', null).order('generated_at', { ascending: false }).limit(1).maybeSingle();
+    if (err) {
+      const cached = await readBundle(passageId);
+      if (cached?.briefing !== undefined) { setBriefing(cached.briefing ?? null); reportOffline(cached.saved_at); }
+      return;
+    }
     setBriefing(data ?? null);
+    void writeBundlePart(passageId, { briefing: data ?? null });
   }, [passageId]);
   useEffect(() => { if (passageId) void Promise.resolve().then(reload); }, [reload, passageId]);
   const generate = useCallback(async (scope: 'full' | 'remaining' = 'full') => {

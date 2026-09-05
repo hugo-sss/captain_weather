@@ -11,12 +11,17 @@ import { num } from '@/types/domain.ts';
 import { StayWindowView } from '@/components/anchorage/StayWindowView.tsx';
 import { WindRose } from '@/components/anchorage/WindRose.tsx';
 import { TideSwellChart } from '@/components/dashboard/TideSwellChart.tsx';
+import { TideChart } from '@/components/dashboard/TideChart.tsx';
+import { SquallBadge } from '@/components/dashboard/SquallBadge.tsx';
+import { OfflineBanner } from '@/components/OfflineBanner.tsx';
+import { cn } from '@/lib/utils.ts';
 import { ModeTabs } from '@/components/dashboard/ModeTabs.tsx';
 import { PageHeader, Sep } from '@/components/PageHeader.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { PageSkeleton } from '@/components/ui/skeleton.tsx';
 import { windRose } from '../../supabase/functions/_shared/departure-windows.ts';
 import { fmtUtc } from '@/lib/time.ts';
+import { useNow } from '@/hooks/useNow.ts';
 
 export default function AnchorageStay() {
   const { id, wpId } = useParams();
@@ -27,6 +32,8 @@ export default function AnchorageStay() {
   const targets = useMemo(() => cond.data?.targets ?? [], [cond.data]);
   const tideSwell = useTideSwellSeries(wp, data?.vessel ?? null, targets);
   const [hours, setHours] = useState<{ dir_deg: number | null; speed_kn: number | null }[]>([]);
+  const [tideMode, setTideMode] = useState<'pair' | 'tide'>('pair');
+  const nowMs = useNow(60_000);
   const atmos = wp ? nearestTargetRow(targets, 'atmospheric', Number(wp.lat), Number(wp.lon)) : null;
   const stayStart = anch?.stay_start ?? wp?.eta ?? null;
   const stayEnd = anch?.stay_end ?? wp?.planned_departure_from_here ?? null;
@@ -48,6 +55,7 @@ export default function AnchorageStay() {
   if (!wp) return <div className="p-6 text-sm text-text-2">Waypoint not found.</div>;
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      <OfflineBanner />
       <PageHeader
         title={<span className="inline-flex items-center gap-2"><Anchor className="h-4 w-4 text-accent" /><span className="num text-text-3 font-normal">{wp.sequence}.</span>{wp.name}</span>}
         meta={<><span>{data.passage.name}</span><Sep /><span>ETA <span className="num text-text-2">{fmtUtc(wp.eta)}</span></span><Sep /><span>stay end <span className="num text-text-2">{fmtUtc(wp.planned_departure_from_here)}</span></span>{!wp.is_anchorage && <><Sep /><span className="text-risk-amber">not marked as an anchorage</span></>}</>}
@@ -57,7 +65,17 @@ export default function AnchorageStay() {
       <div className="p-4 grid gap-4 lg:grid-cols-[1fr_300px]">
         <div className="space-y-4 min-w-0">
           <StayWindowView a={anch} />
-          <TideSwellChart title="Tide + swell over the stay" meta={`UKC on the right axis · datum ${tideSwell.datum ?? 'unknown'}`} points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} />
+          {anch && anch.squall_risk !== 'none' && <div className="flex items-center gap-2 text-xs text-text-2"><SquallBadge risk={anch.squall_risk} /> squall risk over the stay window, from CAPE and precipitation probability</div>}
+          <div className="flex items-center gap-3">
+            <span className="label">Tide</span>
+            <div role="radiogroup" aria-label="Tide chart mode" className="inline-flex h-7 items-center rounded-md border border-border bg-bg-0 p-0.5 text-[11px]">
+              {([['pair', 'Tide + swell'], ['tide', 'Tide only']] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={tideMode === v} onClick={() => setTideMode(v)} className={cn('h-6 rounded-[4px] px-2 font-medium transition-colors', tideMode === v ? 'bg-bg-2 text-text-1 shadow-[inset_0_-2px_0_#2DD4BF]' : 'text-text-2 hover:text-text-1')}>{l}</button>)}
+            </div>
+            <span className="text-[11px] text-text-3">station data only; never a model sea level</span>
+          </div>
+          {tideMode === 'pair'
+            ? <TideSwellChart title="Tide + swell over the stay" meta={`UKC on the right axis · datum ${tideSwell.datum ?? 'unknown'}`} points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} />
+            : <TideChart title="Tide over the stay" meta={`station ${tideSwell.tidalTarget?.station_id ?? '?'} · HW and LW from the series`} series={tideSwell.points.map((p) => ({ t: p.t, height: p.tide }))} datum={tideSwell.datum} nowMs={nowMs} etaMarks={[...(stayStart ? [{ t: Date.parse(stayStart), label: 'arrive' }] : []), ...(stayEnd ? [{ t: Date.parse(stayEnd), label: 'stay end' }] : [])]} />}
         </div>
         <aside className="panel p-3 self-start">
           <div className="label text-text-2 mb-1">Wind rose <span className="text-text-3">· stay window</span></div>

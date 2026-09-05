@@ -1,17 +1,19 @@
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert, X } from 'lucide-react';
 
 import type { MaterialChange } from '../../../supabase/functions/_shared/material-changes.ts';
 export type { MaterialChange };
 
-const FIELD: Record<string, string> = { risk_flag: 'risk flag', source_disagreement: 'models', confidence_level: 'confidence', wind_p90_kn: 'wind p90 (kn)', wave_height_m: 'wave (m)', tide_height_m: 'tide (m)' };
+const FIELD: Record<string, string> = { risk_flag: 'risk flag', source_disagreement: 'models', confidence_level: 'confidence', wind_p90_kn: 'wind p90 (kn)', wave_height_m: 'wave (m)', tide_height_m: 'tide (m)', squall_risk: 'squall', speed_loss_pct: 'speed loss (%)' };
 const val = (v: unknown) => (v === true ? 'diverge' : v === false ? 'agree' : String(v ?? '—'));
 
-/** Feature 12: shown before any numbers on a re-check. */
-export function MaterialChangesBanner({ changes }: { changes: MaterialChange[] | null | undefined }) {
+/** Feature 12: shown before any numbers on a re-check. With `onDismiss` (a notification-backed banner) it can be closed, which marks the alert read. */
+export function MaterialChangesBanner({ changes, meta, onDismiss }: { changes: MaterialChange[] | null | undefined; meta?: React.ReactNode; onDismiss?: () => void }) {
   if (!changes || changes.length === 0) return null;
   return (
     <div role="alert" className="rounded-md border border-risk-amber/50 bg-risk-amber/10 px-3 py-2.5">
-      <div className="flex items-center gap-2 font-semibold text-risk-amber text-sm"><TriangleAlert className="h-4 w-4" /> Material changes since the previous run <span className="num font-medium text-risk-amber/80">({changes.length})</span></div>
+      <div className="flex items-center gap-2 font-semibold text-risk-amber text-sm"><TriangleAlert className="h-4 w-4" /> Material changes since the previous run <span className="num font-medium text-risk-amber/80">({changes.length})</span>{meta && <span className="text-[11px] font-normal text-text-3 ml-1">{meta}</span>}
+        {onDismiss && <button type="button" onClick={onDismiss} className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-sm text-risk-amber/80 hover:bg-risk-amber/15 hover:text-risk-amber" aria-label="Dismiss and mark read"><X className="h-3.5 w-3.5" /></button>}
+      </div>
       <ul className="mt-1.5 grid gap-y-0.5 text-xs min-w-0" style={{ gridTemplateColumns: 'max-content max-content minmax(0, 1fr)' }}>
         {changes.map((c, i) => (
           <li key={i} className="contents">
