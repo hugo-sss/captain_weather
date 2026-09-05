@@ -76,10 +76,30 @@ async function fromTidesAtlas(admin: Admin, lat: number, lon: number, range: { s
   if (!key) return { ok: false, error: 'tide service not configured' };
   const env = adapterEnv();
   const tenv = { fetch: env.fetch, now: env.now, env: (nm: string) => (nm === 'TIDESATLAS_API_KEY' ? key : Deno.env.get(nm)) };
-  const target = { id: 0, layer: 'tidal', grid_lat: Math.round(lat * 100) / 100, grid_lon: Math.round(lon * 100) / 100, horizon_end: range.end, active: true } as unknown as IngestTarget;
+  const gridLat = Math.round(lat * 100) / 100, gridLon = Math.round(lon * 100) / 100;
+  const target = { id: 0, layer: 'tidal', grid_lat: gridLat, grid_lon: gridLon, horizon_end: range.end, active: true } as unknown as IngestTarget;
   const r = await fetchTidesAtlas(target, range, tenv);
   if (!r.ok) return { ok: false, error: r.error };
   const out = shape(r.rows as unknown as Row[], null);
   if (!out) return { ok: false, error: 'no tide series returned for this position' };
+  await cacheLive(admin, gridLat, gridLon, range.end, r.rows as unknown as Row[], r.station_id ?? null);
   return { ok: true, data: out };
+}
+
+/** Persist a live result under an inactive tidal target at the clicked 0.01° point so a repeat click
+ *  (or a nearby one within 25 km) is served from forecast_tidal instead of spending another credit.
+ *  Inactive targets are never picked up by ingest-tick, so this adds no scheduled cost. */
+async function cacheLive(admin: Admin, gridLat: number, gridLon: number, horizonEnd: string, rows: Row[], stationId: string | null): Promise<void> {
+  try {
+    await admin.from('ingest_targets').upsert({ layer: 'tidal', grid_lat: gridLat, grid_lon: gridLon, horizon_end: horizonEnd, active: false, station_id: stationId }, { onConflict: 'layer,grid_lat,grid_lon', ignoreDuplicates: true });
+    const { data: t } = await admin.from('ingest_targets').select('id, active').eq('layer', 'tidal').eq('grid_lat', gridLat).eq('grid_lon', gridLon).maybeSingle();
+    if (!t) return;
+    const targetId = Number(t.id);
+    await admin.from('ingest_targets').update({ station_id: stationId, last_fetched_at: new Date().toISOString() }).eq('id', targetId);
+    const withId = rows.map((row) => ({ ...row, target_id: targetId }));
+    const { error } = await admin.from('forecast_tidal').upsert(withId, { onConflict: 'target_id,source,station_id,forecast_time' });
+    if (error) console.warn('point-tide cache write failed', error.message);
+  } catch (e) {
+    console.warn('point-tide cache write failed', (e as Error).message);
+  }
 }
