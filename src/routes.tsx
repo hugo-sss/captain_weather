@@ -11,6 +11,7 @@ import ComparisonView from '@/pages/ComparisonView.tsx';
 import ActivePassage from '@/pages/ActivePassage.tsx';
 import AnchorageStay from '@/pages/AnchorageStay.tsx';
 import VesselSettings from '@/pages/VesselSettings.tsx';
+import WeatherMap from '@/pages/WeatherMap.tsx';
 
 // Dev-only component gallery. `import.meta.env.DEV` is a build-time constant, so the route and the
 // lazy chunk behind it are dropped from production bundles entirely.
@@ -34,7 +35,7 @@ export function AppRoutes() {
         </Route>
       )}
       <Route element={<Protected><Shell /></Protected>}>
-        <Route index element={<PassageHistory />} />
+        <Route index element={<WeatherMap />} />
         <Route path="passages" element={<PassageHistory />} />
         <Route path="passages/new" element={<PassageBuilder />} />
         <Route path="passages/:id/edit" element={<PassageBuilder />} />
