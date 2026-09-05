@@ -26,7 +26,7 @@ export type BriefingLeg = {
   profile?: {
     points: number; speed_loss_pct: number | null;
     max_wind_p90_kn: number | null; max_gust_p90_kn: number | null; max_wave_m: number | null; max_current_kn: number | null;
-    worst_risk: RiskFlag; squall: 'none' | 'possible' | 'likely'; disagreement_points: number;
+    worst_risk: RiskFlag; squall: 'none' | 'possible' | 'likely'; disagreement_points: number; gap_points: number; lowest_confidence: ConfidenceLevel;
     worst_at: { fraction_pct: number; eta: string; lat: number; lon: number; risk_flag: RiskFlag; wind_p90_kn: number | null; wave_height_m: number | null; reasons: string[] } | null;
   };
   risk_flag: RiskFlag; risk_reasons: string[];
@@ -86,7 +86,7 @@ export function systemPrompt(version = PROMPT_VERSION_DEFAULT): string {
     '',
     'Anchorages: for legs with an anchorage block, describe the stay window: predominant wind and how far it is expected to veer or back, worst-case gusts, swell, tide range and the minimum under-keel clearance estimate.',
     '',
-    'Along the leg: when a leg carries a profile block, it summarises the virtual points BETWEEN the previous waypoint and this one. Name the worst stretch with its time (worst_at) and the maxima, because the waypoints alone can miss what happens mid-leg. profile.squall is a heuristic convective squall indicator from CAPE and precipitation probability; call it "squall risk", never a forecast of a squall.',
+    'Along the leg: when a leg carries a profile block, it summarises the virtual points BETWEEN the previous waypoint and this one. Name the worst stretch with its time (worst_at) and the maxima, because the waypoints alone can miss what happens mid-leg. profile.gap_points counts along-leg points with missing layers (their reasons are in worst_at.reasons or read "no marine data"): when it is above zero say plainly that part of the leg has no sea-state or wind data and confidence there is profile.lowest_confidence, even when the waypoint confidence is high. profile.squall is a heuristic convective squall indicator from CAPE and precipitation probability; call it "squall risk", never a forecast of a squall.',
     "Gusts: gust_source says where the p90 gust came from. When it starts with \"estimated\", say the gust is estimated from the p90 wind, not forecast.",
     'Sea state and ETA: when speed_loss_pct is set, the ETA has been slowed for the forecast sea state on that leg by that percentage and eta_planned is the unadjusted time. Mention it when it moves an ETA by more than an hour.',
     'House style: short, plain sentences a captain reads at a glance. No em dashes or en dashes anywhere; use commas, full stops or the word "to" for ranges. No bullet points, no headings.',

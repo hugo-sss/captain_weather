@@ -115,6 +115,8 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
       points: pts.length, speed_loss_pct: n(pts[0].speed_loss_pct),
       max_wind_p90_kn: mx('wind_p90_kn'), max_gust_p90_kn: mx('gust_p90_kn'), max_wave_m: mx('wave_height_m'), max_current_kn: mx('current_speed_kn'),
       worst_risk: worstFlag, squall, disagreement_points: pts.filter((p) => !!p.source_disagreement).length,
+      gap_points: pts.filter((p) => Array.isArray(p.data_gaps) && (p.data_gaps as unknown[]).length > 0).length,
+      lowest_confidence: (['low', 'moderate', 'high'] as const).find((l) => pts.some((p) => p.confidence_level === l)) ?? 'low',
       worst_at: worst ? { fraction_pct: Math.round(Number(worst.fraction) * 100), eta: String(worst.eta), lat: Number(worst.lat), lon: Number(worst.lon), risk_flag: String(worst.risk_flag) as RiskFlag, wind_p90_kn: n(worst.wind_p90_kn), wave_height_m: n(worst.wave_height_m), reasons: Array.isArray(worst.risk_reasons) ? (worst.risk_reasons as string[]) : [] } : null,
     };
   };
