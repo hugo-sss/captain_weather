@@ -10,10 +10,16 @@ import { DisagreementBadge } from './DisagreementBadge.tsx';
 import { ConfidenceDot } from '@/components/briefing/ConfidenceDot.tsx';
 import { FieldCard } from './FieldCard.tsx';
 import { DirArrow, WindBand } from './WindBand.tsx';
+import { GustSourceChip } from './GustSourceChip.tsx';
+import { SquallBadge } from './SquallBadge.tsx';
+import { LegAlongSummary } from './LegAlongSummary.tsx';
+import { etaDeltaMinutes, type LegProfileData } from '@/lib/leg-profile.ts';
+import { ukcBasisText } from '@/lib/gebco.ts';
 import { cn } from '@/lib/utils.ts';
 
-export function LegCard({ wp, c, selected, onSelect, passageId, utcOffsetMin, maxWindKn = null }: { wp: WaypointRow; c: WaypointConditionsRow | null; selected: boolean; onSelect: () => void; passageId?: string; utcOffsetMin: number | null; maxWindKn?: number | null }) {
+export function LegCard({ wp, c, selected, onSelect, passageId, utcOffsetMin, maxWindKn = null, leg = null }: { wp: WaypointRow; c: WaypointConditionsRow | null; selected: boolean; onSelect: () => void; passageId?: string; utcOffsetMin: number | null; maxWindKn?: number | null; leg?: LegProfileData | null }) {
   const eta = c?.eta ?? wp.eta;
+  const etaDelta = etaDeltaMinutes(c?.eta_planned, c?.eta);
   const gapA = !c || c.wind_p50_kn === null;
   return (
     <div onClick={onSelect} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
@@ -23,12 +29,14 @@ export function LegCard({ wp, c, selected, onSelect, passageId, utcOffsetMin, ma
         <span className="font-medium flex-1 truncate flex items-center gap-1.5">{wp.name ?? 'Waypoint'}{wp.is_anchorage && <Anchor className="h-3 w-3 text-accent shrink-0" aria-label="anchorage" />}{wp.arrived && <Check className="h-3 w-3 text-text-3 shrink-0" aria-label="arrived" />}</span>
         <DisagreementBadge active={!!c?.source_disagreement} speedDelta={num(c?.wind_speed_delta_kn)} dirDelta={num(c?.wind_dir_delta_deg)} primary={c?.atmos_source} comparison={c?.comparison_source} />
         <RiskPill flag={(c?.risk_flag ?? 'unknown') as RiskFlag} reasons={(c?.risk_reasons as string[]) ?? []} />
+        <SquallBadge risk={c?.squall_risk} capeJkg={num(c?.cape_p50_jkg)} precipPct={num(c?.precip_prob_pct)} size="sm" />
         <ConfidenceDot level={(c?.confidence_level ?? 'low') as ConfidenceLevel} triggers={(c?.confidence_triggers as string[]) ?? []} />
       </div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
         <span className="num text-text-1">{fmtUtc(eta)}</span><span className="num text-text-3">{fmtLocal(eta, utcOffsetMin)}</span>
         <span className="text-text-3 ml-auto">lead <span className="num text-text-2">{c?.lead_time_hours !== null && c?.lead_time_hours !== undefined ? `${Math.round(Number(c.lead_time_hours))} h` : '—'}</span></span>
       </div>
+      {(leg || etaDelta !== null) && <div className="flex items-center gap-2 text-[11px]"><span className="label shrink-0">Along leg</span><LegAlongSummary summary={leg?.summary ?? null} etaDeltaMin={etaDelta} speedLossPct={num(c?.speed_loss_pct)} stacked /></div>}
       <div className="grid grid-cols-2 gap-1.5">
         <div className={cn('tile px-3 py-2 min-h-[58px] flex flex-col justify-center', gapA && 'gap-hatch border-dashed')} title={gapA ? 'no atmospheric data' : undefined}>
           <div className="label">Wind p10/50/90</div>
@@ -41,13 +49,13 @@ export function LegCard({ wp, c, selected, onSelect, passageId, utcOffsetMin, ma
         </div>
         <div className={cn('tile px-3 py-2 min-h-[58px] flex flex-col justify-center', gapA && 'gap-hatch border-dashed')}>
           <div className="label">Dir from · gust p90</div>
-          {gapA ? <div className="mt-1 text-[12px] text-text-3">no data</div> : <div className="mt-1 flex items-center gap-2"><DirArrow deg={c.wind_dir_mean_deg} spread={c.wind_dir_spread_deg} /><span className="num text-[15px] font-medium">{fmtNum(num(c.gust_p90_kn), 0)}<span className="font-sans text-[11px] text-text-3 ml-1 font-normal">kn</span></span></div>}
+          {gapA ? <div className="mt-1 text-[12px] text-text-3">no data</div> : <div className="mt-1 flex items-center gap-2"><DirArrow deg={c.wind_dir_mean_deg} spread={c.wind_dir_spread_deg} /><span className="num text-[15px] font-medium">{fmtNum(num(c.gust_p90_kn), 0)}<span className="font-sans text-[11px] text-text-3 ml-1 font-normal">kn</span></span><GustSourceChip source={c.gust_source} /></div>}
         </div>
         <FieldCard label="Wave / period" value={c?.wave_height_m !== null && c?.wave_height_m !== undefined ? `${fmtNum(num(c.wave_height_m), 1)} m / ${fmtNum(num(c.wave_period_s), 0)} s` : null} reason="no marine grid point within 55 km" />
         <FieldCard label="Swell / dir" value={c?.swell_height_m !== null && c?.swell_height_m !== undefined ? `${fmtNum(num(c.swell_height_m), 1)} m / ${Math.round(num(c.swell_dir_deg) ?? 0)}°` : null} reason="no marine data" />
         <FieldCard label="Tide" value={num(c?.tide_height_m)} unit={`m ${c?.tide_datum ?? ''}`} sub={c?.tide_state ?? undefined} reason="no tidal data" />
         <FieldCard label="Current → toward" value={c?.current_speed_kn !== null && c?.current_speed_kn !== undefined ? `${fmtNum(num(c.current_speed_kn), 1)} kn → ${Math.round(num(c.current_dir_deg) ?? 0)}°` : null} reason="no marine data" />
-        <FieldCard label="UKC" value={num(c?.ukc_estimate_m)} unit="m" sub={c?.ukc_basis ?? undefined} reason="needs draft, depth and tide" />
+        <FieldCard label="UKC" value={num(c?.ukc_estimate_m)} unit="m" sub={ukcBasisText(c?.ukc_basis, wp.charted_depth_source)} reason="needs draft, depth and tide" />
         <FieldCard label="Comparison" value={c?.comparison_wind_kn !== null && c?.comparison_wind_kn !== undefined ? `${fmtNum(num(c.comparison_wind_kn), 0)} kn / ${Math.round(num(c.comparison_wind_dir_deg) ?? 0)}°` : null} sub={c?.comparison_source ?? undefined} reason="no comparison row" />
       </div>
       {wp.is_anchorage && passageId && <Link to={`/passages/${passageId}/anchorage/${wp.id}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-[12px] text-accent hover:underline underline-offset-2">Anchorage stay view <ArrowUpRight className="h-3 w-3" /></Link>}

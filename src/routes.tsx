@@ -12,6 +12,8 @@ import ActivePassage from '@/pages/ActivePassage.tsx';
 import AnchorageStay from '@/pages/AnchorageStay.tsx';
 import VesselSettings from '@/pages/VesselSettings.tsx';
 import WeatherMap from '@/pages/WeatherMap.tsx';
+import Notifications from '@/pages/Notifications.tsx';
+import PassagePrint from '@/pages/PassagePrint.tsx';
 
 // Dev-only component gallery. `import.meta.env.DEV` is a build-time constant, so the route and the
 // lazy chunk behind it are dropped from production bundles entirely.
@@ -34,8 +36,11 @@ export function AppRoutes() {
           <Route index element={<Suspense fallback={null}><PreviewIndex /></Suspense>} />
         </Route>
       )}
+      {/* Print layout renders without the shell: white page, no header, no footer chrome. */}
+      <Route path="passages/:id/print" element={<Protected><PassagePrint /></Protected>} />
       <Route element={<Protected><Shell /></Protected>}>
         <Route index element={<WeatherMap />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="passages" element={<PassageHistory />} />
         <Route path="passages/new" element={<PassageBuilder />} />
         <Route path="passages/:id/edit" element={<PassageBuilder />} />

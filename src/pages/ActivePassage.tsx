@@ -19,6 +19,9 @@ import { PageHeader, Sep } from '@/components/PageHeader.tsx';
 import { fmtAge, fmtUtc } from '@/lib/time.ts';
 import { cn } from '@/lib/utils.ts';
 import { materialChanges, type CondForDiff } from '../../supabase/functions/_shared/material-changes.ts';
+import { useNotifications } from '@/hooks/useNotifications.ts';
+import { changesFromPayload, unreadMaterialChangesFor } from '@/lib/notifications.ts';
+import { OfflineBanner } from '@/components/OfflineBanner.tsx';
 
 export default function ActivePassage() {
   const { id } = useParams();
@@ -37,6 +40,8 @@ export default function ActivePassage() {
 
   const conditions = useMemo(() => cond.data?.conditions ?? [], [cond.data]);
   const byWp = useMemo(() => new Map(conditions.map((c) => [c.waypoint_id, c])), [conditions]);
+  const notes = useNotifications();
+  const alert = unreadMaterialChangesFor(notes.notifications, id)[0] ?? null;
   // Material changes: from the latest briefing when present, else a client-side diff of run N vs run N-1 with the same rules.
   const changes: MaterialChange[] = useMemo(() => {
     const fromBriefing = br.briefing?.material_changes as MaterialChange[] | null | undefined;
@@ -71,6 +76,7 @@ export default function ActivePassage() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      <OfflineBanner />
       <PageHeader
         title={passage.name}
         meta={<><StatusBadge status={passage.status} /><Sep /><span>departed <span className="num text-text-2">{fmtUtc(passage.actual_departure ?? passage.planned_departure)}</span></span><Sep /><span>last run {cond.data?.run ? <><span className="text-text-2">{cond.data.run.kind}</span> {fmtAge(cond.data.run.completed_at ?? cond.data.run.created_at)}</> : 'none'}</span></>}
@@ -83,7 +89,7 @@ export default function ActivePassage() {
       />
       {cond.error && <div className="px-4 py-1.5 text-xs bg-risk-red/10 text-risk-red border-b border-risk-red/30">{cond.error}</div>}
       <div className="p-4 space-y-4 max-w-5xl w-full">
-        <MaterialChangesBanner changes={changes} />
+        {alert ? <MaterialChangesBanner changes={changesFromPayload(alert.payload).length ? changesFromPayload(alert.payload) : changes} meta={<>{alert.title} · {fmtAge(alert.created_at)}</>} onDismiss={() => void notes.markRead([alert.id])} /> : <MaterialChangesBanner changes={changes} />}
         {cond.data?.run?.kind === 'recheck' && changes.length === 0 && <p className="rounded-md border border-border bg-bg-1 px-3 py-2 text-xs text-text-2 flex items-center gap-2"><Check className="h-3.5 w-3.5 text-risk-green" /> Re-check found no material changes against the previous run.</p>}
 
         <section className="panel p-4">
