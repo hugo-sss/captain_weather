@@ -7,7 +7,8 @@ export function OpenSeaMapLayer({ visible }: { visible: boolean }) {
 }
 
 export function BaseTiles() {
-  // CARTO dark basemap: a native dark tileset (no invert filter needed) and far more
-  // tolerant of hotlinking than tile.openstreetmap.org, which refuses many app requests.
-  return <TileLayer subdomains="abcd" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors &copy; CARTO' maxZoom={20} />;
+  // Esri Dark Gray Canvas: a native dark basemap that is still keyless. CARTO now
+  // watermarks its free tiles ("API key required") and OSM's tile server refuses
+  // many app requests, so this is the reliable no-key dark option. Note {z}/{y}/{x}.
+  return <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution='Tiles &copy; Esri' maxZoom={16} />;
 }
