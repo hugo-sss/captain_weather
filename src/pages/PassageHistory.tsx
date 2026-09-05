@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Activity, Pencil, Plus, Route } from 'lucide-react';
 import { supabase } from '@/lib/supabase.ts';
 import { usePassages } from '@/hooks/usePassage.ts';
 import { useVessels } from '@/hooks/useVessels.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { Badge } from '@/components/ui/badge.tsx';
+import { StatusBadge } from '@/components/ui/badge.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { RiskPill } from '@/components/dashboard/RiskPill.tsx';
 import { ConfidenceDot } from '@/components/briefing/ConfidenceDot.tsx';
 import { fmtAge, fmtUtc } from '@/lib/time.ts';
@@ -47,32 +49,67 @@ export default function PassageHistory() {
     return () => { cancelled = true; };
   }, [ids]);
   const vName = (id: string) => vessels.find((v) => v.id === id)?.name ?? '—';
+  const active = passages.filter((p) => p.status === 'active').length;
   return (
-    <div className="p-4 max-w-6xl">
+    <div className="p-4 md:p-6 max-w-6xl w-full">
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-lg font-semibold">Passages</h1>
-        <Button asChild size="sm" className="ml-auto"><Link to="/passages/new">New passage</Link></Button>
+        <div>
+          <h1 className="text-lg font-semibold leading-tight">Passages</h1>
+          <p className="text-[11px] text-text-3 mt-0.5">{loading ? 'loading' : <><span className="num">{passages.length}</span> total{active > 0 && <> · <span className="num text-accent">{active}</span> active</>}</>}</p>
+        </div>
+        <Button asChild size="sm" className="ml-auto"><Link to="/passages/new"><Plus className="h-3.5 w-3.5" /> New passage</Link></Button>
       </div>
-      {vessels.length === 0 && !loading && <p className="text-sm text-text-2 mb-4">Create a <Link className="text-accent" to="/vessels/new">vessel</Link> first: cruise speed and thresholds drive every ETA and risk flag.</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border"><tr><th className="label text-left py-1.5">Name</th><th className="label text-left">Vessel</th><th className="label text-left">Status</th><th className="label text-left">Departure (UTC)</th><th className="label text-left">Worst flag</th><th className="label text-left">Last run</th><th className="label text-left">Briefing confidence</th><th /></tr></thead>
-          <tbody>
+      {vessels.length === 0 && !loading && <p className="mb-4 rounded-md border border-risk-amber/40 bg-risk-amber/10 px-3 py-2 text-sm text-risk-amber">Create a <Link className="underline underline-offset-2" to="/vessels/new">vessel</Link> first: cruise speed and thresholds drive every ETA and risk flag.</p>}
+
+      {loading && <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11" />)}</div>}
+      {!loading && passages.length === 0 && (
+        <div className="gap-hatch rounded-lg border border-dashed border-border py-12 text-center">
+          <Route className="h-6 w-6 mx-auto text-text-3 mb-2" />
+          <p className="text-sm text-text-2">No passages yet.</p>
+          <p className="text-xs text-text-3 mt-1">Import a GPX or drop pins on the map to plan the first one.</p>
+        </div>
+      )}
+
+      {!loading && passages.length > 0 && (
+        <>
+          {/* Mobile: stacked cards with the same fields. */}
+          <ul className="md:hidden space-y-2">
             {passages.map((p) => { const e = extra[p.id]; return (
-              <tr key={p.id} className="border-b border-border hover:bg-bg-2/50">
-                <td className="py-2"><Link className="text-text-1 hover:text-accent" to={`/passages/${p.id}`}>{p.name}</Link></td>
-                <td>{vName(p.vessel_id)}</td>
-                <td><Badge className={p.status === 'active' ? 'border-accent/50 text-accent' : 'border-border text-text-2'}>{p.status}</Badge></td>
-                <td className="num">{fmtUtc(p.actual_departure ?? p.planned_departure)}</td>
-                <td>{e?.worst ? <RiskPill flag={e.worst} /> : <span className="text-text-3 text-xs">no run</span>}</td>
-                <td className="num text-xs text-text-2">{e?.runAt ? fmtAge(e.runAt) : '—'}</td>
-                <td>{e?.confidence ? <span className="flex items-center gap-2"><ConfidenceDot level={e.confidence} withLabel /><span className="text-[11px] text-text-3">{fmtAge(e.briefingAt)}</span></span> : <span className="text-text-3 text-xs">none</span>}</td>
-                <td className="text-right whitespace-nowrap"><Link className="text-xs text-text-2 hover:text-accent mr-3" to={`/passages/${p.id}/active`}>Monitor</Link><Link className="text-xs text-text-2 hover:text-accent" to={`/passages/${p.id}/edit`}>Edit</Link></td>
-              </tr>); })}
-            {passages.length === 0 && !loading && <tr><td colSpan={8} className="py-6 text-center text-text-3 text-sm">No passages yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+              <li key={p.id} className="panel p-3">
+                <div className="flex items-center gap-2"><Link className="font-medium flex-1 truncate hover:text-accent" to={`/passages/${p.id}`}>{p.name}</Link><StatusBadge status={p.status} /></div>
+                <div className="mt-1 text-[11px] text-text-3">{vName(p.vessel_id)} · <span className="num">{fmtUtc(p.actual_departure ?? p.planned_departure)}</span></div>
+                <div className="mt-2 flex items-center gap-3 text-xs">
+                  {e?.worst ? <RiskPill flag={e.worst} size="sm" /> : <span className="text-text-3">no run</span>}
+                  {e?.confidence && <ConfidenceDot level={e.confidence} withLabel />}
+                  <span className="num text-text-3 ml-auto">{e?.runAt ? fmtAge(e.runAt) : ''}</span>
+                </div>
+              </li>); })}
+          </ul>
+          <div className="hidden md:block panel overflow-hidden">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Vessel</th><th>Status</th><th>Departure (UTC)</th><th>Worst flag</th><th>Last run</th><th>Briefing confidence</th><th className="r" /></tr></thead>
+              <tbody>
+                {passages.map((p) => { const e = extra[p.id]; return (
+                  <tr key={p.id} className="group">
+                    <td className="!py-2.5"><Link className="font-medium text-text-1 hover:text-accent" to={`/passages/${p.id}`}>{p.name}</Link></td>
+                    <td className="text-text-2">{vName(p.vessel_id)}</td>
+                    <td><StatusBadge status={p.status} /></td>
+                    <td className="num text-text-2">{fmtUtc(p.actual_departure ?? p.planned_departure)}</td>
+                    <td>{e?.worst ? <RiskPill flag={e.worst} size="sm" /> : <span className="text-text-3 text-xs">no run</span>}</td>
+                    <td className="num text-xs text-text-2">{e?.runAt ? fmtAge(e.runAt) : '—'}</td>
+                    <td>{e?.confidence ? <span className="flex items-center gap-2"><ConfidenceDot level={e.confidence} withLabel /><span className="num text-[11px] text-text-3">{fmtAge(e.briefingAt)}</span></span> : <span className="text-text-3 text-xs">none</span>}</td>
+                    <td className="r">
+                      <span className="inline-flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <Link className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-text-2 hover:bg-bg-2 hover:text-text-1" to={`/passages/${p.id}/active`}><Activity className="h-3.5 w-3.5" /> Monitor</Link>
+                        <Link className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-text-2 hover:bg-bg-2 hover:text-text-1" to={`/passages/${p.id}/edit`}><Pencil className="h-3.5 w-3.5" /> Edit</Link>
+                      </span>
+                    </td>
+                  </tr>); })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

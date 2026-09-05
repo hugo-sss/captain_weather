@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Upload } from 'lucide-react';
+import { ArrowRight, CloudLightning, MapPin, Upload, Wind } from 'lucide-react';
 import { supabase, invokeFunction } from '@/lib/supabase.ts';
 import { usePassage } from '@/hooks/usePassage.ts';
 import { useVessels } from '@/hooks/useVessels.ts';
@@ -18,8 +18,9 @@ import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Select } from '@/components/ui/select.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
-import { fromLocalInput, toLocalInput } from '@/lib/time.ts';
-import { fmtHours } from '@/lib/time.ts';
+import { fmtHours, fmtUtc, fromLocalInput, toLocalInput } from '@/lib/time.ts';
+import { cn } from '@/lib/utils.ts';
+import { PageSkeleton } from '@/components/ui/skeleton.tsx';
 
 type Meta = { name: string; vessel_id: string; planned_departure: string; tropical_activity_flag: boolean; frontal_activity_flag: boolean; notes: string };
 let keySeq = 0;
@@ -29,7 +30,8 @@ export default function PassageBuilder() {
   const { id } = useParams();
   const { data, loading } = usePassage(id);
   const { vessels } = useVessels();
-  if (id && (loading || !data)) return <div className="p-4 text-text-2">{loading ? 'Loading passage…' : 'Passage not found.'}</div>;
+  if (id && loading) return <PageSkeleton variant="map" />;
+  if (id && !data) return <div className="p-6 text-sm text-text-2">Passage not found.</div>;
   // Key on the passage id so the form's own state initialises from the loaded rows exactly once per passage.
   return <BuilderForm key={id ?? 'new'} id={id} passage={data?.passage ?? null} waypoints={data?.waypoints ?? []} vessels={vessels} />;
 }
@@ -120,47 +122,71 @@ function BuilderForm({ id, passage, waypoints: rows, vessels }: { id: string | u
   };
 
   const sheetWp = withEta.find((w) => w.key === sheetKey) ?? null;
+  const dest = withEta[withEta.length - 1];
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <DisclaimerBar />
-      <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_380px]">
-        <div className="relative min-h-[40vh] lg:min-h-[360px]">
+      <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_400px]">
+        <div className="relative min-h-[40vh] lg:min-h-[420px]">
           <PassageMap waypoints={withEta.map((w) => ({ id: w.key, sequence: w.sequence, name: w.name, lat: w.lat, lon: w.lon, is_anchorage: w.is_anchorage }))} editable selectedId={selectedKey} showOpenSeaMap={prefs.show_openseamap} onAddPin={addPin} onMovePin={movePin} onSelect={(k) => { setSelectedKey(k); setSheetKey(k); }} />
-          <div className="absolute top-2 right-2 z-[1000] rounded-md border border-border bg-bg-1/90 px-2 py-1 text-[11px] flex items-center gap-2"><span>OpenSeaMap</span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} /></div>
-          <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-border bg-bg-1/90 px-2 py-1 text-[11px] text-text-2">Click the map to drop a pin. Drag pins to move them.</div>
-        </div>
-        <aside className="border-l border-border bg-bg-1 p-3 overflow-y-auto space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="col-span-2"><Label>Passage name</Label><Input value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} placeholder="Phuket to Lanta" /></div>
-            <div><Label>Vessel</Label><Select value={vesselId} onChange={(e) => setMeta({ ...meta, vessel_id: e.target.value })}><option value="">—</option>{vessels.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</Select></div>
-            <div><Label>Departure (local)</Label><Input type="datetime-local" value={toLocalInput(meta.planned_departure)} onChange={(e) => setMeta({ ...meta, planned_departure: fromLocalInput(e.target.value) ?? meta.planned_departure })} /></div>
-            <label className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-xs"><span>Tropical activity</span><Switch checked={meta.tropical_activity_flag} onCheckedChange={(v) => setMeta({ ...meta, tropical_activity_flag: v })} /></label>
-            <label className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-xs"><span>Frontal activity</span><Switch checked={meta.frontal_activity_flag} onCheckedChange={(v) => setMeta({ ...meta, frontal_activity_flag: v })} /></label>
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => gpxRef.current?.click()}><Upload className="h-3.5 w-3.5" /> GPX</Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => csvRef.current?.click()}><Upload className="h-3.5 w-3.5" /> CSV</Button>
-            <input ref={gpxRef} type="file" accept=".gpx,application/gpx+xml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onGpx(f); e.target.value = ''; }} />
-            <input ref={csvRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onCsv(f); e.target.value = ''; }} />
-            <span className="text-[11px] text-text-3 self-center">CSV: name,lat,lon[,is_anchorage,stay_hours]</span>
-          </div>
-          {notice && <p className="text-xs text-risk-amber">{notice}</p>}
-          <div>
-            <div className="label mb-1">Waypoints ({items.length}) · drag to reorder · click for details</div>
-            <WaypointList items={withEta} selectedKey={selectedKey} onSelect={(k) => { setSelectedKey(k); setSheetKey(k); }} onDelete={del} onReorder={setItems} />
-          </div>
-          {preview && (
-            <div className="text-xs text-text-2 num flex gap-4">
-              <span>{preview.totalDistanceNm.toFixed(1)} nm</span><span>{fmtHours(preview.totalHours)}</span><span>arr {preview.arrival.slice(0, 16).replace('T', ' ')}Z</span>
-              {preview.errors.length > 0 && <span className="text-risk-red">{preview.errors.join(', ')}</span>}
+          <label className="absolute top-2 right-2 z-[1000] rounded-md border border-border bg-bg-1/92 backdrop-blur-sm px-2.5 py-1.5 text-[11px] flex items-center gap-3 cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.35)]"><span>OpenSeaMap <span className="text-text-3">crowdsourced, not official</span></span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} aria-label="OpenSeaMap overlay" /></label>
+          <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-border bg-bg-1/92 backdrop-blur-sm px-2.5 py-1.5 text-[11px] text-text-2 flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-accent" /> Click the map to drop a pin. Drag pins to move them.</div>
+          {withEta.length >= 2 && (
+            <div className="absolute bottom-2 right-2 z-[1000] rounded-md border border-border bg-bg-1/92 backdrop-blur-sm px-3 py-1.5 text-[12px] flex items-center gap-2 max-w-[60%]">
+              <span className="truncate font-medium">{withEta[0].name || 'WP1'}</span><ArrowRight className="h-3.5 w-3.5 text-text-3 shrink-0" /><span className="truncate font-medium">{dest.name || `WP${dest.sequence}`}</span>
+              {preview && <span className="num text-text-3 shrink-0 ml-1">{preview.totalDistanceNm.toFixed(1)} nm</span>}
             </div>
           )}
-          {!vessel && <p className="text-xs text-risk-amber">Pick a vessel to see ETAs.</p>}
-          {error && <p className="text-xs text-risk-red">{error}</p>}
-          <div className="flex gap-2">
-            <Button onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save and plan targets' : 'Create passage'}</Button>
-            {editing && <Button variant="ghost" onClick={() => nav(`/passages/${id}`)}>Cancel</Button>}
+        </div>
+        <aside className="border-l border-border bg-bg-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between"><h1 className="text-[15px] font-semibold">{editing ? 'Edit passage' : 'New passage'}</h1><span className="text-[11px] text-text-3">{editing ? 'changes apply on save' : 'at least two waypoints'}</span></div>
+              <div><Label>Passage name</Label><Input value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} placeholder="Phuket to Lanta" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Vessel</Label><Select value={vesselId} onChange={(e) => setMeta({ ...meta, vessel_id: e.target.value })}><option value="">—</option>{vessels.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</Select></div>
+                <div><Label>Departure (local)</Label><Input type="datetime-local" value={toLocalInput(meta.planned_departure)} onChange={(e) => setMeta({ ...meta, planned_departure: fromLocalInput(e.target.value) ?? meta.planned_departure })} /></div>
+              </div>
+            </section>
+            <section className="space-y-2">
+              <div className="label">Manual confidence triggers <span className="normal-case tracking-normal text-text-3/80">· cap the briefing at low</span></div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={cn('tile flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:border-text-3/50', meta.tropical_activity_flag && 'border-risk-amber/50')}><span className="flex items-center gap-1.5"><CloudLightning className={cn('h-3.5 w-3.5', meta.tropical_activity_flag ? 'text-risk-amber' : 'text-text-3')} /> Tropical</span><Switch checked={meta.tropical_activity_flag} onCheckedChange={(v) => setMeta({ ...meta, tropical_activity_flag: v })} /></label>
+                <label className={cn('tile flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:border-text-3/50', meta.frontal_activity_flag && 'border-risk-amber/50')}><span className="flex items-center gap-1.5"><Wind className={cn('h-3.5 w-3.5', meta.frontal_activity_flag ? 'text-risk-amber' : 'text-text-3')} /> Frontal</span><Switch checked={meta.frontal_activity_flag} onCheckedChange={(v) => setMeta({ ...meta, frontal_activity_flag: v })} /></label>
+              </div>
+            </section>
+            <section className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="label flex-1">Import</div>
+                <Button type="button" variant="secondary" size="xs" onClick={() => gpxRef.current?.click()}><Upload className="h-3.5 w-3.5" /> GPX</Button>
+                <Button type="button" variant="secondary" size="xs" onClick={() => csvRef.current?.click()}><Upload className="h-3.5 w-3.5" /> CSV</Button>
+                <input ref={gpxRef} type="file" accept=".gpx,application/gpx+xml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onGpx(f); e.target.value = ''; }} />
+                <input ref={csvRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onCsv(f); e.target.value = ''; }} />
+              </div>
+              <p className="text-[11px] text-text-3">GPX routes first, tracks as a fallback. CSV columns: <span className="num text-text-2">name,lat,lon[,is_anchorage,stay_hours]</span></p>
+              {notice && <p className="rounded-md border border-risk-amber/40 bg-risk-amber/10 px-2.5 py-1.5 text-xs text-risk-amber">{notice}</p>}
+            </section>
+            <section className="space-y-2">
+              <div className="flex items-baseline justify-between"><div className="label">Waypoints <span className="num text-text-2">({items.length})</span></div><span className="text-[11px] text-text-3">drag to reorder · click for details</span></div>
+              <WaypointList items={withEta} selectedKey={selectedKey} onSelect={(k) => { setSelectedKey(k); setSheetKey(k); }} onDelete={del} onReorder={setItems} />
+              {!vessel && <p className="text-xs text-risk-amber">Pick a vessel to see ETAs.</p>}
+            </section>
+          </div>
+          <div className="border-t border-border bg-bg-1 p-4 space-y-3">
+            {preview && (
+              <div className="grid grid-cols-3 gap-2">
+                <div><div className="label">Distance</div><div className="num text-[15px] font-medium mt-0.5">{preview.totalDistanceNm.toFixed(1)}<span className="text-[11px] text-text-3 font-sans ml-1">nm</span></div></div>
+                <div><div className="label">Time</div><div className="num text-[15px] font-medium mt-0.5">{fmtHours(preview.totalHours)}</div></div>
+                <div><div className="label">Arrival</div><div className="num text-[15px] font-medium mt-0.5">{fmtUtc(preview.arrival)}</div></div>
+                {preview.errors.length > 0 && <div className="col-span-3 text-xs text-risk-red">{preview.errors.join(', ')}</div>}
+              </div>
+            )}
+            {error && <p className="text-xs text-risk-red">{error}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => void save()} disabled={saving} className="flex-1">{saving ? 'Saving…' : editing ? 'Save and plan targets' : 'Create passage'}</Button>
+              {editing && <Button variant="ghost" onClick={() => nav(`/passages/${id}`)}>Cancel</Button>}
+            </div>
           </div>
         </aside>
       </div>

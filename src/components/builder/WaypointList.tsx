@@ -12,13 +12,14 @@ function Row({ item, selected, onSelect, onDelete }: { item: ListItem; selected:
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.key });
   const style = { transform: CSS.Transform.toString(transform), transition };
   return (
-    <div ref={setNodeRef} style={style} onClick={onSelect} className={cn('flex items-center gap-2 rounded-md border border-border bg-bg-2 px-2 py-1.5 text-sm cursor-pointer', selected && 'ring-1 ring-accent', isDragging && 'opacity-60')}>
-      <button type="button" {...attributes} {...listeners} className="text-text-3 cursor-grab" aria-label="Drag to reorder"><GripVertical className="h-4 w-4" /></button>
-      <span className="num text-text-3 w-5">{item.sequence}</span>
-      <span className="flex-1 truncate">{item.name || 'Waypoint'}{item.is_anchorage && <Anchor className="inline h-3 w-3 ml-1 text-accent" />}</span>
-      <span className="num text-[11px] text-text-3">{item.distanceNm !== undefined && item.sequence > 1 ? `${item.distanceNm.toFixed(1)} nm` : ''}</span>
-      <span className="num text-[11px] text-text-2 w-24 text-right">{item.eta ? fmtUtc(item.eta) : ''}</span>
-      <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-text-3 hover:text-risk-red" aria-label="Delete waypoint"><Trash2 className="h-3.5 w-3.5" /></button>
+    <div ref={setNodeRef} style={style} onClick={onSelect} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
+      className={cn('group flex items-center gap-2 rounded-md border bg-bg-2 pl-1 pr-1.5 h-10 text-sm cursor-pointer transition-colors', selected ? 'border-accent/60 shadow-[inset_2px_0_0_#2DD4BF]' : 'border-border hover:border-text-3/50', isDragging && 'opacity-60 shadow-[0_8px_24px_rgba(0,0,0,0.5)]')}>
+      <button type="button" {...attributes} {...listeners} className="inline-flex h-8 w-6 items-center justify-center text-text-3 cursor-grab active:cursor-grabbing hover:text-text-1" aria-label="Drag to reorder"><GripVertical className="h-4 w-4" /></button>
+      <span className="num inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-bg-1 text-[10.5px] text-text-2">{item.sequence}</span>
+      <span className="flex-1 truncate flex items-center gap-1.5">{item.name || 'Waypoint'}{item.is_anchorage && <Anchor className="h-3 w-3 text-accent shrink-0" aria-label="anchorage" />}</span>
+      <span className="num text-[11px] text-text-3 w-14 text-right whitespace-nowrap">{item.distanceNm !== undefined && item.sequence > 1 ? `${item.distanceNm.toFixed(1)} nm` : ''}</span>
+      <span className="num text-[11px] text-text-2 w-[92px] text-right whitespace-nowrap">{item.eta ? fmtUtc(item.eta) : ''}</span>
+      <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-text-3 opacity-60 group-hover:opacity-100 hover:text-risk-red hover:bg-risk-red/10" aria-label="Delete waypoint"><Trash2 className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
@@ -32,6 +33,7 @@ export function WaypointList({ items, selectedKey, onSelect, onDelete, onReorder
     // Sequence renumbers on the client; the save writes all rows in one request (deferred unique constraint).
     onReorder(arrayMove(items, from, to).map((it, i) => ({ ...it, sequence: i + 1 })));
   };
+  if (items.length === 0) return <div className="gap-hatch rounded-md border border-dashed border-border p-4 text-center text-xs text-text-3">No waypoints yet. Click the map to drop the first pin, or import a GPX or CSV.</div>;
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={items.map((i) => i.key)} strategy={verticalListSortingStrategy}>

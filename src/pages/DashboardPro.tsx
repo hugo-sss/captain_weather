@@ -1,7 +1,7 @@
 // Professional dashboard: the default landing view. Raw data first (non-negotiable 1).
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Download, RefreshCw } from 'lucide-react';
+import { Activity, Download, Pencil, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase.ts';
 import { usePassage } from '@/hooks/usePassage.ts';
 import { useConditions } from '@/hooks/useConditions.ts';
@@ -16,12 +16,16 @@ import { RiskPill } from '@/components/dashboard/RiskPill.tsx';
 import { ConfidenceDot } from '@/components/briefing/ConfidenceDot.tsx';
 import { PassageMap } from '@/components/map/PassageMap.tsx';
 import { DisclaimerBar } from '@/components/map/DisclaimerBar.tsx';
+import { MapHeaderStrip } from '@/components/map/MapHeaderStrip.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
+import { StatusBadge } from '@/components/ui/badge.tsx';
+import { PageSkeleton } from '@/components/ui/skeleton.tsx';
+import { PageHeader, Sep } from '@/components/PageHeader.tsx';
 import { ModeTabs } from '@/components/dashboard/ModeTabs.tsx';
 import { BriefingCard } from '@/components/briefing/BriefingCard.tsx';
 import { TideSwellChart } from '@/components/dashboard/TideSwellChart.tsx';
-import { OverlayToggles } from '@/components/map/OverlayToggles.tsx';
+import { OverlayToggles, RiskLegend } from '@/components/map/OverlayToggles.tsx';
 import { useBriefing } from '@/hooks/useBriefing.ts';
 import { useTideSwellSeries } from '@/hooks/useTideSwellSeries.ts';
 import { useDepartureWindows } from '@/hooks/useDepartureWindows.ts';
@@ -29,6 +33,7 @@ import { DepartureWindows } from '@/components/dashboard/DepartureWindows.tsx';
 import { fmtAge, fmtHours, fmtLocal, fmtUtc } from '@/lib/time.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { toGpx } from '@/lib/gpx.ts';
+import { cn } from '@/lib/utils.ts';
 import { worstRisk } from '../../supabase/functions/_shared/risk.ts';
 import { passageConfidence } from '../../supabase/functions/_shared/confidence.ts';
 
@@ -55,7 +60,8 @@ export default function DashboardPro() {
   const dep = useDepartureWindows(waypoints[0] ?? null, data?.vessel ?? null, cond.data?.targets ?? [], primarySource, comparisonSource);
   const [showMapMobile, setShowMapMobile] = useState(false);
 
-  if (loading || !data) return <div className="p-4 text-text-2">{loading ? 'Loading passage…' : 'Passage not found.'}</div>;
+  if (loading) return <PageSkeleton variant="table" />;
+  if (!data) return <div className="p-6 text-sm text-text-2">Passage not found.</div>;
   const { passage, vessel } = data;
   const maxWind = num(vessel?.max_wind_kn);
   const totalNm = waypoints.reduce((s, w) => s + (num(w.leg_distance_nm) ?? 0), 0);
@@ -65,6 +71,7 @@ export default function DashboardPro() {
   const confidence = conditions.length ? passageConfidence(conditions.map((c) => c.confidence_level as ConfidenceLevel)) : null;
   const maxP90 = conditions.reduce<number | null>((m, c) => { const v = num(c.wind_p90_kn); return v === null ? m : Math.max(m ?? -Infinity, v); }, null);
   const maxWave = conditions.reduce<number | null>((m, c) => { const v = num(c.wave_height_m); return v === null ? m : Math.max(m ?? -Infinity, v); }, null);
+  const maxWaveLimit = num(vessel?.max_wave_m);
   const run = cond.data?.run ?? null;
   const targets = cond.data?.targets ?? [];
   const layerStatus = (['atmospheric', 'comparison', 'marine', 'tidal'] as const).map((layer) => {
@@ -74,6 +81,7 @@ export default function DashboardPro() {
     const last = ts.map((t) => t.last_fetched_at).filter(Boolean).sort().pop() ?? null;
     return { layer, count: ts.length, fetched, err, last };
   });
+  const redCount = flags.filter((f) => f === 'red').length, amberCount = flags.filter((f) => f === 'amber').length, divergeCount = conditions.filter((c) => c.source_disagreement).length;
 
   const setStatus = async (status: string) => {
     const patch: { status: string; actual_departure?: string } = { status };
@@ -86,59 +94,90 @@ export default function DashboardPro() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${passage.name.replace(/[^\w-]+/g, '_')}.gpx`; a.click(); URL.revokeObjectURL(a.href);
   };
 
+  const mapWps = waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }));
+  const mapBlock = (heightClass: string) => (
+    <div className="panel overflow-hidden">
+      <DisclaimerBar />
+      <div className={cn('relative', heightClass)}>
+        <PassageMap waypoints={mapWps} selectedId={selected?.id ?? null} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk onSelect={setSelectedId} />
+        <OverlayToggles prefs={prefs} update={update} encStatus={encStatus} />
+        <RiskLegend />
+      </div>
+    </div>
+  );
+  const briefing = (
+    <BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact />
+  );
+  const primaryAction = passage.status === 'active'
+    ? <Button size="sm" onClick={() => void cond.compute('recheck')} disabled={!!cond.busy}><RefreshCw className={cn('h-3.5 w-3.5', cond.busy && 'animate-spin')} /> Re-check conditions</Button>
+    : <Button size="sm" onClick={() => void cond.compute('initial')} disabled={!!cond.busy}><Activity className="h-3.5 w-3.5" /> Compute conditions</Button>;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <div className="px-4 py-2 border-b border-border bg-bg-1 flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-base font-semibold leading-tight">{passage.name}</div>
-          <div className="text-[11px] text-text-3">{vessel?.name ?? 'no vessel'} · {passage.status} · departs {fmtUtc(passage.actual_departure ?? passage.planned_departure)} · run {run ? `${run.status} ${fmtAge(run.completed_at ?? run.created_at)}` : 'none yet'}</div>
-        </div>
-        <ModeTabs passageId={passage.id} current="pro" />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => void cond.planTargets()} disabled={!!cond.busy}>Plan targets</Button>
-          <Button size="sm" variant="secondary" onClick={() => void cond.fetchNow()} disabled={!!cond.busy} title="Calls ingest-tick for every layer with force=true"><RefreshCw className="h-3.5 w-3.5" /> Fetch now</Button>
-          <Button size="sm" onClick={() => void cond.compute(passage.status === 'active' ? 'recheck' : 'initial')} disabled={!!cond.busy}>{passage.status === 'active' ? 'Re-check conditions' : 'Compute conditions'}</Button>
-          <Button size="sm" variant="ghost" onClick={exportGpx}><Download className="h-3.5 w-3.5" /> GPX</Button>
-          <Button size="sm" variant="ghost" asChild><Link to={`/passages/${passage.id}/edit`}>Edit</Link></Button>
+      <PageHeader
+        title={passage.name}
+        meta={<>{vessel?.name ?? 'no vessel'}<Sep /><StatusBadge status={passage.status} /><Sep /><span>departs <span className="num text-text-2">{fmtUtc(passage.actual_departure ?? passage.planned_departure)}</span></span><Sep /><span>run {run ? <><span className="text-text-2">{run.status}</span> {fmtAge(run.completed_at ?? run.created_at)}</> : 'none yet'}</span></>}
+        tabs={<ModeTabs passageId={passage.id} current="pro" />}
+        actions={<>
+          <Button size="sm" variant="ghost" onClick={() => void cond.planTargets()} disabled={!!cond.busy}>Plan targets</Button>
+          <Button size="sm" variant="secondary" onClick={() => void cond.fetchNow()} disabled={!!cond.busy} title="Calls ingest-tick for every layer with force=true"><Download className="h-3.5 w-3.5" /> Fetch now</Button>
+          {primaryAction}
+          <span className="hidden sm:block h-5 w-px bg-border mx-1" />
+          <Button size="sm" variant="ghost" onClick={exportGpx} title="Export GPX">GPX</Button>
+          <Button size="sm" variant="ghost" asChild><Link to={`/passages/${passage.id}/edit`}><Pencil className="h-3.5 w-3.5" /> Edit</Link></Button>
           {passage.status === 'planned' && <Button size="sm" variant="outline" onClick={() => void setStatus('active')}>Mark active</Button>}
           {passage.status === 'active' && <Button size="sm" variant="outline" asChild><Link to={`/passages/${passage.id}/active`}>Monitor</Link></Button>}
-        </div>
-      </div>
-      {(cond.busy || cond.error) && <div className={`px-4 py-1.5 text-xs ${cond.error ? 'bg-risk-red/10 text-risk-red' : 'bg-bg-2 text-text-2'}`}>{cond.error ?? cond.busy}</div>}
+        </>}
+      />
+      {(cond.busy || cond.error) && <div role="status" className={cn('px-4 py-1.5 text-xs flex items-center gap-2', cond.error ? 'bg-risk-red/10 text-risk-red border-b border-risk-red/30' : 'bg-bg-2 text-text-2 border-b border-border')}>{!cond.error && <RefreshCw className="h-3 w-3 animate-spin" />}{cond.error ?? cond.busy}</div>}
 
-      <div className="px-4 py-3 border-b border-border">
+      <div className="px-4 py-3 border-b border-border bg-bg-1/40">
         <KpiStrip items={[
           { label: 'Distance', value: `${totalNm.toFixed(1)} nm`, aside: `${waypoints.length} wps` },
           { label: 'Arrival', value: arrival ? fmtUtc(arrival) : '—', aside: arrival ? fmtLocal(arrival, prefs.local_utc_offset_min) : undefined },
           { label: 'Passage time', value: arrival ? fmtHours((Date.parse(arrival) - Date.parse(passage.actual_departure ?? passage.planned_departure)) / 3_600_000) : '—' },
-          { label: 'Max wind p90', value: maxP90 === null ? '—' : `${fmtNum(maxP90, 0)} kn`, tone: maxWind !== null && maxP90 !== null && maxP90 > maxWind ? 'red' : maxWind !== null && maxP90 !== null && maxP90 > 0.75 * maxWind ? 'amber' : 'default' },
-          { label: 'Max wave', value: maxWave === null ? '—' : `${fmtNum(maxWave, 1)} m` },
-          { label: 'Flags', value: <span className="flex gap-1"><RiskPill flag={worst} /></span>, aside: `${flags.filter((f) => f === 'red').length} red · ${flags.filter((f) => f === 'amber').length} amber · ${conditions.filter((c) => c.source_disagreement).length} diverge` },
+          { label: 'Max wind p90', value: maxP90 === null ? '—' : `${fmtNum(maxP90, 0)} kn`, aside: maxWind !== null ? `limit ${maxWind}` : undefined, tone: maxWind !== null && maxP90 !== null && maxP90 > maxWind ? 'red' : maxWind !== null && maxP90 !== null && maxP90 > 0.75 * maxWind ? 'amber' : 'default' },
+          { label: 'Max wave', value: maxWave === null ? '—' : `${fmtNum(maxWave, 1)} m`, aside: maxWaveLimit !== null ? `limit ${maxWaveLimit}` : undefined, tone: maxWaveLimit !== null && maxWave !== null && maxWave > maxWaveLimit ? 'red' : maxWaveLimit !== null && maxWave !== null && maxWave > 0.75 * maxWaveLimit ? 'amber' : 'default' },
+          { label: 'Flags', value: <RiskPill flag={worst} />, aside: conditions.length ? <span className="num"><span className={redCount ? 'text-risk-red' : ''}>{redCount} red</span> · <span className={amberCount ? 'text-risk-amber' : ''}>{amberCount} amber</span> · <span className={divergeCount ? 'text-flag-violet' : ''}>{divergeCount} diverge</span></span> : 'no run' },
           { label: 'Confidence', value: confidence ? <ConfidenceDot level={confidence} withLabel /> : '—' },
         ]} />
       </div>
 
-      <div className="px-4 py-2 border-b border-border flex items-center gap-4 text-xs">
+      <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
         <span className="label">Sources</span>
-        {layerStatus.map((l) => (
-          <span key={l.layer} className={l.err ? 'text-risk-amber' : l.fetched ? 'text-text-2' : 'text-text-3'} title={l.err ?? undefined}>
-            {l.layer}: {l.count === 0 ? 'no targets' : l.err ? (l.err.startsWith('not configured') ? l.err : `error (${l.fetched}/${l.count} ok)`) : `${l.fetched}/${l.count} fetched ${l.last ? fmtAge(l.last) : ''}`}
-          </span>
-        ))}
-        <label className="ml-auto flex items-center gap-2"><span>Comparison columns</span><Switch checked={showComparison} onCheckedChange={setShowComparison} /></label>
+        {layerStatus.map((l) => {
+          const state = l.count === 0 ? 'none' : l.err ? 'err' : l.fetched === l.count ? 'ok' : 'partial';
+          return (
+            <span key={l.layer} className="inline-flex items-center gap-1.5" title={l.err ?? undefined}>
+              <span className={cn('inline-block h-1.5 w-1.5 rounded-full', state === 'ok' ? 'bg-risk-green' : state === 'err' ? 'bg-risk-amber' : state === 'partial' ? 'bg-text-2' : 'bg-text-3/50')} />
+              <span className="text-text-2">{l.layer}</span>
+              <span className="num text-text-3">{l.count === 0 ? 'no targets' : l.err ? (l.err.startsWith('not configured') ? l.err : `error · ${l.fetched}/${l.count} ok`) : `${l.fetched}/${l.count}${l.last ? ` · ${fmtAge(l.last)}` : ''}`}</span>
+            </span>
+          );
+        })}
+        <label className="ml-auto flex items-center gap-2 text-text-2 cursor-pointer"><span>Comparison columns</span><Switch checked={showComparison} onCheckedChange={setShowComparison} aria-label="Show comparison columns" /></label>
       </div>
 
-      {prefs.narrative_emphasis >= 0.5 && <div className="p-4 border-b border-border"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>}
-      {conditions.length === 0 && <div className="px-4 py-2 text-xs text-text-2 bg-bg-1">No conditions run yet. Plan targets, fetch, then compute. Rows below show the engine's ETAs only.</div>}
+      {waypoints.length >= 2 && (
+        <>
+          <MapHeaderStrip from={`${waypoints[0].sequence}. ${waypoints[0].name ?? ''}`} to={`${waypoints[waypoints.length - 1].sequence}. ${waypoints[waypoints.length - 1].name ?? ''}`} totalNm={totalNm} legs={waypoints.slice(1).map((w) => ({ nm: num(w.leg_distance_nm) ?? 0, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} open={showMapMobile} onToggle={() => setShowMapMobile((v) => !v)} />
+          {showMapMobile && <div className="md:hidden p-3 border-b border-border">{mapBlock('h-64')}</div>}
+        </>
+      )}
+
+      {prefs.narrative_emphasis >= 0.5 && <div className="p-4 border-b border-border">{briefing}</div>}
+      {conditions.length === 0 && <div className="mx-4 mt-3 rounded-md border border-dashed border-border gap-hatch px-3 py-2 text-xs text-text-2">No conditions run yet. Plan targets, fetch, then compute. Rows below show the engine's ETAs only.</div>}
       <LegTable waypoints={waypoints} conditions={conditions} maxWindKn={maxWind} selectedId={selected?.id ?? null} onSelect={setSelectedId} showComparison={showComparison} utcOffsetMin={prefs.local_utc_offset_min} passageId={passage.id} />
 
-      <div className="grid lg:grid-cols-2 gap-3 p-4 border-t border-border">
-        <div className="space-y-3">
-          <div className="flex items-baseline gap-2"><span className="label">Selected</span><span className="font-medium">{selected ? `${selected.sequence}. ${selected.name ?? ''}` : '—'}</span>
-            {selC && <span className="text-[11px] text-text-3">atmos init {fmtUtc(selC.atmos_init_time)} · marine init {fmtUtc(selC.marine_init_time)}</span>}</div>
-          <BandChart points={band.points} limitKn={maxWind} etaIso={selC?.eta ?? selected?.eta} comparisonLabel={comparisonSource} />
-          <div className="label">Tide + swell at this waypoint (one axis, UKC line)</div>
-          <TideSwellChart points={tideSwell.points} minUkcM={num(vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={selC?.eta ?? selected?.eta} stayEndIso={selected?.is_anchorage ? selected.planned_departure_from_here : null} />
+      <div className="grid lg:grid-cols-[1.15fr_1fr] gap-4 p-4 border-t border-border">
+        <div className="space-y-3 min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="label">Selected</span>
+            <span className="text-[15px] font-semibold">{selected ? <><span className="num text-text-3 mr-1.5">{selected.sequence}.</span>{selected.name ?? ''}</> : '—'}</span>
+            {selC && <span className="num text-[11px] text-text-3">atmos init {fmtUtc(selC.atmos_init_time)} · marine init {fmtUtc(selC.marine_init_time)}</span>}
+          </div>
+          <BandChart title="Wind at this waypoint" meta={atmosTarget ? `grid ${Number(atmosTarget.grid_lat).toFixed(2)}, ${Number(atmosTarget.grid_lon).toFixed(2)}` : undefined} points={band.points} limitKn={maxWind} etaIso={selC?.eta ?? selected?.eta} comparisonLabel={comparisonSource} />
+          <TideSwellChart title="Tide + swell at this waypoint" meta="one axis for sea, UKC on the right" points={tideSwell.points} minUkcM={num(vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={selC?.eta ?? selected?.eta} stayEndIso={selected?.is_anchorage ? selected.planned_departure_from_here : null} />
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <FieldCard label="Wind p50 / p90" value={selC?.wind_p50_kn !== null && selC?.wind_p50_kn !== undefined ? `${fmtNum(num(selC.wind_p50_kn), 0)} / ${fmtNum(num(selC.wind_p90_kn), 0)}` : null} unit="kn" reason="no atmospheric data within 55 km / ±6 h of ETA" />
             <FieldCard label="Gust p90" value={num(selC?.gust_p90_kn)} unit="kn" reason="no atmospheric data" />
@@ -153,17 +192,17 @@ export default function DashboardPro() {
             <FieldCard label="Comparison wind" value={selC?.comparison_wind_kn !== null && selC?.comparison_wind_kn !== undefined ? `${fmtNum(num(selC.comparison_wind_kn), 0)} kn / ${Math.round(num(selC.comparison_wind_dir_deg) ?? 0)}°` : null} sub={selC?.comparison_source ?? undefined} reason="no comparison row at this hour" />
             <FieldCard label="Charted depth" value={num(selected?.charted_depth_m)} unit="m" reason="enter in the waypoint sheet (manual in v1)" />
           </div>
-          {selC && (selC.risk_reasons as string[]).length > 0 && <ul className="text-xs text-text-2 list-disc pl-4">{(selC.risk_reasons as string[]).map((r) => <li key={r}>{r}</li>)}</ul>}
+          {selC && (selC.risk_reasons as string[]).length > 0 && (
+            <div className="panel p-3">
+              <div className="label mb-1.5">Risk reasons</div>
+              <ul className="text-xs space-y-0.5">{(selC.risk_reasons as string[]).map((r) => <li key={r} className="flex gap-2"><span className={selC.risk_flag === 'red' ? 'text-risk-red' : 'text-risk-amber'}>{selC.risk_flag === 'red' ? '■' : '▲'}</span><span className="num text-text-2">{r}</span></li>)}</ul>
+            </div>
+          )}
         </div>
-        <div className="flex flex-col md:min-h-[320px]">
-          <button className="md:hidden text-left text-xs text-accent mb-1" onClick={() => setShowMapMobile((v) => !v)}>{showMapMobile ? 'Hide map' : 'Show map'}</button>
-          <DisclaimerBar />
-          <div className={`relative flex-1 min-h-[280px] ${showMapMobile ? '' : 'hidden md:block'}`}>
-            <PassageMap waypoints={waypoints.map((w) => ({ id: w.id, sequence: w.sequence, name: w.name, lat: Number(w.lat), lon: Number(w.lon), is_anchorage: w.is_anchorage, risk: (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} selectedId={selected?.id ?? null} showOpenSeaMap={prefs.show_openseamap} showNoaaEnc={prefs.show_noaa_enc} onEncStatus={setEncStatus} colourByRisk onSelect={setSelectedId} />
-            <OverlayToggles prefs={prefs} update={update} encStatus={encStatus} />
-          </div>
-          {prefs.narrative_emphasis < 0.5 && <div className="mt-3"><BriefingCard briefing={br.briefing} busy={br.busy} error={br.error} onGenerate={() => void br.generate(passage.status === 'active' ? 'remaining' : 'full')} passageId={passage.id} compact /></div>}
-          <div className="mt-3"><DepartureWindows derived={dep.windows} sampled={dep.sampled} suggested={(br.briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? []} /></div>
+        <div className="space-y-3 min-w-0">
+          <div className="hidden md:block">{mapBlock('h-[360px]')}</div>
+          {prefs.narrative_emphasis < 0.5 && briefing}
+          <DepartureWindows derived={dep.windows} sampled={dep.sampled} suggested={(br.briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? []} />
         </div>
       </div>
     </div>

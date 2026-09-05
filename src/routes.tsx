@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { Shell } from '@/components/Shell.tsx';
@@ -11,6 +12,10 @@ import ActivePassage from '@/pages/ActivePassage.tsx';
 import AnchorageStay from '@/pages/AnchorageStay.tsx';
 import VesselSettings from '@/pages/VesselSettings.tsx';
 
+// Dev-only component gallery. `import.meta.env.DEV` is a build-time constant, so the route and the
+// lazy chunk behind it are dropped from production bundles entirely.
+const PreviewIndex = import.meta.env.DEV ? lazy(() => import('@/preview/PreviewIndex.tsx')) : null;
+
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const loc = useLocation();
@@ -23,6 +28,11 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {PreviewIndex && (
+        <Route path="/preview" element={<Shell />}>
+          <Route index element={<Suspense fallback={null}><PreviewIndex /></Suspense>} />
+        </Route>
+      )}
       <Route element={<Protected><Shell /></Protected>}>
         <Route index element={<PassageHistory />} />
         <Route path="passages" element={<PassageHistory />} />

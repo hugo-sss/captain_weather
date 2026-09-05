@@ -33,21 +33,24 @@ export default function Login() {
   return (
     <div className="min-h-full flex flex-col">
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm rounded-lg border border-border bg-bg-1 p-6">
-          <div className="flex items-center gap-2 mb-1 font-semibold text-lg"><Anchor className="h-5 w-5 text-accent" /> Captain Passage Tool</div>
+        <div className="w-full max-w-sm panel border-t-2 border-t-accent p-6">
+          <div className="flex items-center gap-2.5 mb-1">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/12 border border-accent/30 text-accent"><Anchor className="h-4 w-4" /></span>
+            <span className="font-semibold text-[15px]">Captain Passage Tool</span>
+          </div>
           <p className="text-xs text-text-2 mb-5">Single user. Sign in with an email magic link.</p>
-          {!supabaseConfigured && <p className="text-xs text-risk-amber mb-3">VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set. Copy .env.example to .env.local.</p>}
+          {!supabaseConfigured && <p className="mb-3 rounded-md border border-risk-amber/40 bg-risk-amber/10 px-3 py-2 text-xs text-risk-amber">VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set. Copy .env.example to .env.local.</p>}
           <form onSubmit={sendLink} className="space-y-3">
-            <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+            <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="captain@…" /></div>
             <Button type="submit" className="w-full" disabled={busy || !email}>{sent ? 'Resend link' : 'Send magic link'}</Button>
           </form>
           {sent && (
-            <form onSubmit={verifyCode} className="mt-4 space-y-2">
+            <form onSubmit={verifyCode} className="mt-4 space-y-2 border-t border-border pt-4">
               <Label htmlFor="code">Or enter the code from the email</Label>
-              <div className="flex gap-2"><Input id="code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" /><Button type="submit" variant="secondary" disabled={busy || code.length < 6}>Verify</Button></div>
+              <div className="flex gap-2"><Input id="code" inputMode="numeric" className="num tracking-[0.2em]" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" /><Button type="submit" variant="secondary" disabled={busy || code.length < 6}>Verify</Button></div>
             </form>
           )}
-          {msg && <p className="mt-4 text-xs text-text-2">{msg}</p>}
+          {msg && <p className="mt-4 text-xs text-text-2 leading-relaxed">{msg}</p>}
         </div>
       </div>
       <AttributionFooter />

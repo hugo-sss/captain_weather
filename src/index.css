@@ -22,15 +22,64 @@
   html, body, #root { height: 100%; }
   body { @apply bg-bg-0 text-text-1 font-sans text-[14px] antialiased; }
   * { @apply border-border; }
-  .num { @apply font-mono; font-variant-numeric: tabular-nums; }
-  .label { @apply text-label uppercase text-text-3 font-medium; }
-  .gap-hatch { @apply bg-gap; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  ::selection { background: rgba(45, 212, 191, 0.25); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+  /* Dark scrollbars so overflow containers do not glow white. */
+  * { scrollbar-width: thin; scrollbar-color: #23304A transparent; }
+  *::-webkit-scrollbar { height: 8px; width: 8px; }
+  *::-webkit-scrollbar-thumb { background: #23304A; border-radius: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
 }
 
-/* Leaflet dark treatment: desaturate the OSM base so colour is reserved for data. */
-.leaflet-container { background: #0B1220; }
+@layer components {
+  /* Numerics: JetBrains Mono, tabular so columns align (PRD §9.3). */
+  .num { @apply font-mono; font-variant-numeric: tabular-nums; }
+  /* Field-card label: 11 px, uppercase, muted, 0.06em (PRD §9.3). */
+  .label { @apply text-label uppercase text-text-3 font-medium; }
+  /* Layered surfaces: page (bg-0) > panel (bg-1) > tile (bg-2). */
+  .panel { @apply rounded-lg border border-border bg-bg-1; }
+  .tile { @apply rounded-md border border-border bg-bg-2; }
+  /* "No data" gap: diagonal hatch of text-3 at 20 % (PRD §9.2). */
+  .gap-hatch { @apply bg-gap; }
+  /* Loading skeleton that keeps the final layout. */
+  .skeleton { @apply rounded-sm bg-bg-2 relative overflow-hidden; }
+  .skeleton::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(230, 237, 247, 0.06), transparent); animation: shimmer 1.6s infinite; }
+  /* Dense data table. */
+  .data-table { @apply w-full text-[13px]; border-collapse: separate; border-spacing: 0; }
+  .data-table thead th { @apply label text-left px-1.5 py-1.5 whitespace-nowrap bg-bg-1 border-b border-border font-medium; position: sticky; top: 0; z-index: 1; }
+  .data-table thead tr.groups th { @apply text-[10px] text-text-3/80 pb-0.5 pt-1.5 border-b-0 tracking-[0.08em]; }
+  .data-table thead tr.groups th:not(:empty) { border-bottom: 1px solid #23304A; }
+  .data-table tbody td { @apply px-1.5 py-1.5 whitespace-nowrap align-middle border-b border-border/70; }
+  .data-table tbody tr { transition: background-color 120ms ease; }
+  .data-table tbody tr:hover { background: rgba(24, 35, 56, 0.55); }
+  .data-table tbody tr.is-selected { background: #182338; box-shadow: inset 2px 0 0 var(--accent); }
+  .data-table tbody tr.is-flagged { background: rgba(167, 139, 250, 0.07); box-shadow: inset 2px 0 0 var(--flag-violet); }
+  .data-table .r { @apply text-right; }
+  /* Chart frame: title row + legend chips above the plot. */
+  .chart-legend { @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-2; }
+  .chart-legend .swatch { @apply inline-block h-2 w-3 rounded-[2px] align-middle mr-1; }
+}
+
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  * { transition-duration: 0ms !important; }
+}
+
+/* Leaflet dark treatment: desaturate the OSM base so colour is reserved for data.
+   The container carries a faint graticule so the map still reads as a chart while tiles load. */
+.leaflet-container {
+  background-color: #0B1220;
+  background-image: linear-gradient(rgba(35, 48, 74, 0.55) 1px, transparent 1px), linear-gradient(90deg, rgba(35, 48, 74, 0.55) 1px, transparent 1px);
+  background-size: 64px 64px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
 .leaflet-tile-pane .osm-dark { filter: invert(1) hue-rotate(180deg) brightness(0.72) contrast(0.9) saturate(0.35); }
-.leaflet-control-attribution { background: rgba(17,26,46,0.85) !important; color: #9AA8C0 !important; font-size: 10px; }
-.leaflet-control-attribution a { color: #2DD4BF !important; }
-.leaflet-bar a { background: #182338 !important; color: #E6EDF7 !important; border-color: #23304A !important; }
+.leaflet-control-attribution { background: rgba(17, 26, 46, 0.85) !important; color: #66748F !important; font-size: 10px; }
+.leaflet-control-attribution a { color: #9AA8C0 !important; }
+.leaflet-bar { border: 1px solid #23304A !important; box-shadow: none !important; border-radius: 6px !important; overflow: hidden; }
+.leaflet-bar a { background: #111A2E !important; color: #E6EDF7 !important; border-color: #23304A !important; width: 28px !important; height: 28px !important; line-height: 28px !important; }
+.leaflet-bar a:hover { background: #182338 !important; }
+.leaflet-tooltip { background: #182338; color: #E6EDF7; border: 1px solid #23304A; border-radius: 6px; font-size: 12px; padding: 4px 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
+.leaflet-tooltip-top:before { border-top-color: #23304A; }
+.leaflet-pm-toolbar .leaflet-buttons-control-button { background: #111A2E !important; }
