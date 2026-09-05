@@ -85,3 +85,25 @@
 .leaflet-tooltip { background: #182338; color: #E6EDF7; border: 1px solid #23304A; border-radius: 6px; font-size: 12px; padding: 4px 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
 .leaflet-tooltip-top:before { border-top-color: #23304A; }
 .leaflet-pm-toolbar .leaflet-buttons-control-button { background: #111A2E !important; }
+
+/* ---- Print (Phase 5) ------------------------------------------------------------------------
+   /passages/:id/print is the only page meant for paper: white page, black ink, no chrome. The dark
+   app pages are blanked under @media print so a stray Ctrl+P never prints a dark screen. */
+.print-page { background: #fff; color: #111; color-scheme: light; }
+.print-page .num { font-variant-numeric: tabular-nums; }
+.print-page .gap-hatch { background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.12) 0 4px, transparent 4px 8px); }
+.print-page .border-border { border-color: #ccc; }
+.print-table { border-collapse: collapse; }
+.print-table th, .print-table td { border: 1px solid #bbb; padding: 1px 3px; text-align: right; white-space: nowrap; vertical-align: middle; }
+.print-table th { background: #eee; font-weight: 600; font-size: 9px; text-transform: uppercase; letter-spacing: 0.03em; white-space: normal; max-width: 64px; line-height: 1.15; }
+.print-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+html.print-view, html.print-view body { background: #fff; color: #111; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  html:not(.print-view) body > * { display: none !important; }
+  html:not(.print-view) body::before { content: 'This screen is not laid out for paper. Use "Export PDF" on the Professional dashboard for the print layout.'; display: block; padding: 24px; font: 14px Inter, system-ui, sans-serif; color: #000; background: #fff; }
+  html.print-view body { background: #fff !important; color: #111 !important; }
+  .print-page { max-width: none; padding: 0; }
+  .print-leg { break-inside: avoid; page-break-inside: avoid; }
+  .print-table { font-size: 9px; }
+}

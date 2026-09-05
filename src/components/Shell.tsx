@@ -3,6 +3,7 @@ import { Anchor, CloudSun, LogOut, Route, Ship } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { AttributionFooter } from '@/components/AttributionFooter.tsx';
 import { DisplayPrefsControl } from '@/components/DisplayPrefsControl.tsx';
+import { NotificationBell } from '@/components/notifications/NotificationBell.tsx';
 import { cn } from '@/lib/utils.ts';
 
 export function Shell() {
@@ -23,6 +24,7 @@ export function Shell() {
         <NavLink to="/vessels" className={nav} aria-label="Vessels"><Ship className="h-3.5 w-3.5" /><span className="hidden sm:inline">Vessels</span></NavLink>
         <div className="ml-auto flex items-center gap-3 text-xs text-text-3">
           <DisplayPrefsControl />
+          <NotificationBell />
           <span className="hidden lg:inline num text-[11px]">{user?.email}</span>
           <button onClick={() => void signOut()} className="inline-flex h-8 items-center gap-1 rounded-md px-2 hover:bg-bg-2 hover:text-text-1 transition-colors" aria-label="Sign out"><LogOut className="h-3.5 w-3.5" /><span className="hidden sm:inline">Sign out</span></button>
         </div>

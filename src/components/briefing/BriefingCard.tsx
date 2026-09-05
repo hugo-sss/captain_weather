@@ -1,7 +1,7 @@
 // Hero card for the briefing (Simplified mode) and the compact panel in Professional and Monitor modes.
 // Never shows unvalidated text. Raw data is always one tap away.
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, GitCompareArrows, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowUpRight, GitCompareArrows, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 import type { BriefingRow, ConfidenceLevel } from '@/types/domain.ts';
 import { briefingDisplay } from '@/hooks/useBriefing.ts';
 import { ConfidenceDot } from './ConfidenceDot.tsx';
@@ -16,9 +16,11 @@ type Props = {
   compact?: boolean; hero?: boolean; bare?: boolean;
   /** The Monitor screen renders the banner itself above the numbers; avoid showing it twice. */
   hideMaterialChanges?: boolean;
+  /** A notification-backed banner above the card is the source of truth: show one line here until it is dismissed. */
+  collapseMaterialChanges?: boolean;
 };
 
-export function BriefingCard({ briefing, busy, error, onGenerate, passageId, tableHref, compact, hero, bare, hideMaterialChanges }: Props) {
+export function BriefingCard({ briefing, busy, error, onGenerate, passageId, tableHref, compact, hero, bare, hideMaterialChanges, collapseMaterialChanges }: Props) {
   const d = briefingDisplay(briefing);
   const windows = (briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? [];
   void passageId;
@@ -33,7 +35,9 @@ export function BriefingCard({ briefing, busy, error, onGenerate, passageId, tab
         <Button size="sm" variant="secondary" onClick={onGenerate} disabled={busy}><RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />{busy ? 'Generating…' : briefing ? 'Regenerate' : 'Generate briefing'}</Button>
       </div>
       {error && <p className="text-xs text-risk-red">{error}</p>}
-      {!hideMaterialChanges && briefing?.material_changes ? <MaterialChangesBanner changes={briefing.material_changes as MaterialChange[]} /> : null}
+      {!hideMaterialChanges && briefing?.material_changes && (briefing.material_changes as MaterialChange[]).length > 0 ? (collapseMaterialChanges
+        ? <p className="rounded-md border border-risk-amber/40 bg-risk-amber/10 px-3 py-1.5 text-xs text-risk-amber flex items-center gap-2"><TriangleAlert className="h-3.5 w-3.5 shrink-0" /><span><span className="num font-semibold">{(briefing.material_changes as MaterialChange[]).length}</span> material changes since the previous run, see banner above</span></p>
+        : <MaterialChangesBanner changes={briefing.material_changes as MaterialChange[]} />) : null}
       {d.state === 'none' && <p className="text-sm text-text-2">No briefing generated for this run. The Professional table is the source of truth either way.</p>}
       {d.state === 'unavailable' && <p className="rounded-md border border-risk-amber/40 bg-risk-amber/10 px-3 py-2 text-sm text-risk-amber">{d.reason}</p>}
       {d.state === 'ok' && briefing && (

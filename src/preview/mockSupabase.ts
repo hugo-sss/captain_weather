@@ -1,6 +1,8 @@
 // Dev-only stand-in for '@/lib/supabase.ts'. Activated by the PREVIEW_MOCK=1 Vite alias (see vite.config.ts)
 // so the real pages and hooks render unchanged against the fixtures. Never part of a production build.
-import { buildDb, USER_EMAIL, type FixtureDb, type Row } from './fixtures.ts';
+// `?offline=1` on the URL makes every query fail the way a browser with no network does, so the
+// IndexedDB fallback and its banner can be exercised (load the page online first to fill the cache).
+import { buildDb, pointTideFixture, USER_EMAIL, type FixtureDb, type Row } from './fixtures.ts';
 
 type Filter = (r: Row) => boolean;
 type Result<T> = { data: T; error: { message: string } | null };
@@ -9,10 +11,12 @@ const db: FixtureDb = buildDb();
 let seq = 1000;
 const same = (a: unknown, b: unknown) => a === b || String(a) === String(b);
 const cmpVal = (a: unknown, b: unknown) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b)));
+const simulatedOffline = () => { try { return new URLSearchParams(window.location.search).get('offline') === '1'; } catch { return false; } };
+const OFFLINE_ERROR = { message: 'TypeError: Failed to fetch' };
 
 class Query<T = Row[]> implements PromiseLike<Result<T>> {
   private filters: Filter[] = [];
-  private orderBy: { key: string; asc: boolean } | null = null;
+  private orderBy: { key: string; asc: boolean }[] = [];
   private max: number | null = null;
   private shape: 'many' | 'maybeSingle' | 'single' = 'many';
   private mode: 'select' | 'update' | 'insert' | 'upsert' | 'delete' = 'select';
@@ -28,7 +32,8 @@ class Query<T = Row[]> implements PromiseLike<Result<T>> {
   lte(k: string, v: unknown) { this.filters.push((r) => cmpVal(r[k], v) <= 0); return this; }
   gt(k: string, v: unknown) { this.filters.push((r) => cmpVal(r[k], v) > 0); return this; }
   lt(k: string, v: unknown) { this.filters.push((r) => cmpVal(r[k], v) < 0); return this; }
-  order(k: string, o?: { ascending?: boolean }) { this.orderBy = { key: k, asc: o?.ascending ?? true }; return this; }
+  /** Chained .order() calls compose like PostgREST: first key is primary. */
+  order(k: string, o?: { ascending?: boolean }) { this.orderBy.push({ key: k, asc: o?.ascending ?? true }); return this; }
   limit(n: number) { this.max = n; return this; }
   maybeSingle() { this.shape = 'maybeSingle'; return this as unknown as Query<Row | null>; }
   single() { this.shape = 'single'; return this as unknown as Query<Row>; }
@@ -38,6 +43,7 @@ class Query<T = Row[]> implements PromiseLike<Result<T>> {
   delete() { this.mode = 'delete'; return this; }
 
   private exec(): Result<unknown> {
+    if (simulatedOffline()) return { data: null, error: OFFLINE_ERROR };
     const rows = db[this.table] ?? (db[this.table] = []);
     const match = (r: Row) => this.filters.every((f) => f(r));
     let out: Row[];
@@ -58,7 +64,10 @@ class Query<T = Row[]> implements PromiseLike<Result<T>> {
     } else {
       out = rows.filter(match);
     }
-    if (this.orderBy) { const { key, asc } = this.orderBy; out = [...out].sort((a, b) => cmpVal(a[key], b[key]) * (asc ? 1 : -1)); }
+    if (this.orderBy.length) {
+      const ob = this.orderBy;
+      out = [...out].sort((a, b) => { for (const { key, asc } of ob) { const c = cmpVal(a[key], b[key]) * (asc ? 1 : -1); if (c !== 0) return c; } return 0; });
+    }
     if (this.max !== null) out = out.slice(0, this.max);
     if (this.shape === 'maybeSingle') return { data: out[0] ?? null, error: null };
     if (this.shape === 'single') return out[0] ? { data: out[0], error: null } : { data: null, error: { message: 'no rows' } };
@@ -82,14 +91,21 @@ const client = {
     signInWithOtp: async () => ({ data: {}, error: null }),
     verifyOtp: async () => ({ data: {}, error: null }),
   },
-  functions: { invoke: async (name: string) => { await new Promise((r) => setTimeout(r, 700)); return { data: name === 'compute-conditions' ? { run_id: 'run-2' } : {}, error: null }; } },
+  functions: {
+    invoke: async (name: string, opts?: { body?: Record<string, unknown> }) => {
+      await new Promise((r) => setTimeout(r, name === 'point-tide' ? 500 : 700));
+      if (simulatedOffline()) return { data: null, error: OFFLINE_ERROR };
+      if (name === 'point-tide') { const b = opts?.body ?? {}; return { data: pointTideFixture(Number(b.lat), Number(b.lon), Number(b.days ?? 2)), error: null }; }
+      return { data: name === 'compute-conditions' ? { run_id: 'run-2' } : {}, error: null };
+    },
+  },
 };
 
 export const supabaseConfigured = true;
 export const supabase = client as unknown as typeof import('@/lib/supabase.ts')['supabase'];
-export type FunctionName = 'plan-targets' | 'ingest-tick' | 'compute-conditions' | 'generate-briefing';
+export type FunctionName = 'plan-targets' | 'ingest-tick' | 'compute-conditions' | 'generate-briefing' | 'point-tide';
 export async function invokeFunction<T = unknown>(name: FunctionName, body: Record<string, unknown>): Promise<T> {
-  void body;
-  const { data } = await client.functions.invoke(name);
+  const { data, error } = await client.functions.invoke(name, { body });
+  if (error) throw new Error(error.message);
   return data as T;
 }

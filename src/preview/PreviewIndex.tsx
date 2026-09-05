@@ -25,10 +25,22 @@ import { StatusBadge } from '@/components/ui/badge.tsx';
 import { PageSkeleton, Skeleton } from '@/components/ui/skeleton.tsx';
 import { MapHeaderStrip } from '@/components/map/MapHeaderStrip.tsx';
 import { windRose } from '../../supabase/functions/_shared/departure-windows.ts';
+import { SquallBadge } from '@/components/dashboard/SquallBadge.tsx';
+import { GustSourceChip } from '@/components/dashboard/GustSourceChip.tsx';
+import { DepthSourceChip } from '@/components/dashboard/DepthSourceChip.tsx';
+import { LegAlongSummary } from '@/components/dashboard/LegAlongSummary.tsx';
+import { LegProfile } from '@/components/dashboard/LegProfile.tsx';
+import { TideChart } from '@/components/dashboard/TideChart.tsx';
+import { NotificationItem } from '@/components/notifications/NotificationItem.tsx';
+import { groupLegConditions } from '@/lib/leg-profile.ts';
+import type { LegConditionsRow, NotificationRow } from '@/types/domain.ts';
 import * as fx from './fixtures.ts';
 
 const conds = fx.waypoint_conditions.filter((c) => c.run_id === 'run-2') as unknown as WaypointConditionsRow[];
 const wps = fx.waypoints.filter((w) => w.passage_id === 'p1') as unknown as WaypointRow[];
+const legs = groupLegConditions(fx.leg_conditions as unknown as LegConditionsRow[], wps);
+const pointTide = fx.pointTideFixture(7.6, 98.6, 2);
+const NOW_MS = Date.now();
 const briefing = fx.passage_briefings[0] as unknown as BriefingRow;
 const anch = fx.anchorage_conditions[1] as unknown as AnchorageConditionsRow;
 const atmosTarget = fx.ingest_targets.find((t) => t.layer === 'atmospheric' && Number(t.id) === 113) ?? fx.ingest_targets.find((t) => t.layer === 'atmospheric')!;
@@ -155,6 +167,31 @@ export default function PreviewIndex() {
           <LegCard wp={wps[3]} c={conds[3]} selected onSelect={noop} passageId="p1" utcOffsetMin={420} maxWindKn={25} />
           <LegCard wp={wps[4]} c={conds[4]} selected={false} onSelect={noop} passageId="p1" utcOffsetMin={420} maxWindKn={25} />
         </div>
+      </Section>
+
+      <Section title="Phase 5 · squall · gust provenance · depth provenance · along-leg summary">
+        <div className="flex flex-wrap items-center gap-3">
+          <SquallBadge risk="possible" capeJkg={640} precipPct={55} /><SquallBadge risk="likely" capeJkg={1350} precipPct={70} /><SquallBadge risk="possible" size="sm" />
+          <span className="text-text-3">|</span>
+          <span className="num text-sm">29 kn <GustSourceChip source="google_weathernext2_ensemble" /></span><span className="num text-sm">25 kn <GustSourceChip source="ecmwf_ifs025_ensemble" /></span><span className="num text-sm">38 kn <GustSourceChip source="estimated_x1.3" /></span>
+          <span className="text-text-3">|</span>
+          <DepthSourceChip source="gebco" />
+          <span className="text-text-3">|</span>
+          <LegAlongSummary summary={legs[2]?.summary ?? null} etaDeltaMin={70} speedLossPct={22} />
+        </div>
+      </Section>
+
+      <Section title="Leg profile (conditions between waypoints) · hover a point">
+        <div className="panel p-3">{legs[2] ? <LegProfile leg={legs[2]} maxWindKn={25} maxWaveM={2} utcOffsetMin={420} /> : null}</div>
+      </Section>
+
+      <Section title="Tide only (station curve, HW/LW, now, ETA marks) · point-tide response">
+        <TideChart series={tidePoints.map((p) => ({ t: p.t, height: p.tide }))} datum="LAT" nowMs={NOW_MS} etaMarks={[{ t: Date.parse(String(wps[4].eta)), label: '5. ETA' }]} title="Tide at Ao Kantiang" meta="station TH-0421" />
+        <div className="max-w-sm panel p-3"><TideChart bare compact series={pointTide.series.map((s) => ({ t: Date.parse(s.time), height: s.height_m }))} extremes={pointTide.extremes.map((e) => ({ t: Date.parse(e.time), height: e.height_m, type: e.type }))} datum={pointTide.datum} nowMs={NOW_MS} /></div>
+      </Section>
+
+      <Section title="Notifications (inbox rows)">
+        <div className="panel p-1 max-w-lg">{(fx.notifications as unknown as NotificationRow[]).slice(0, 3).map((n) => <NotificationItem key={n.id} n={n} now={NOW_MS} onOpen={noop} dense />)}</div>
       </Section>
 
       <Section title="Loading skeletons (match the final layout)">
