@@ -8,7 +8,7 @@
 // via BRIEFING_BASE_URL + BRIEFING_API_KEY + BRIEFING_MODEL. A missing key stores an
 // "unavailable" row so the UI can say why, with the raw data still shown.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.123.0';
-import { adminClient, callerOwnsPassage, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
+import { adminClient, callerOwnsPassage, cronAuthorized, type Admin } from '../_shared/runtime/supabaseAdmin.ts';
 import { json, preflight, readJson } from '../_shared/runtime/http.ts';
 import { loadPassage, type WaypointRow } from '../_shared/runtime/planTargets.ts';
 import {
@@ -26,12 +26,38 @@ type Turn = { role: 'user' | 'assistant'; content: string };
 type ModelResult = { text: string; servedModel: string; refused: boolean; refusalCategory: string | null; truncated: boolean };
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
+type BriefingConfig = { provider: string; model: string | undefined; baseUrl: string | undefined; key: string | undefined; promptVersion: string };
+// Config comes from edge-function env first; whatever is missing is filled from
+// the briefing_config() RPC (api key from Vault, provider/base_url/model from
+// app_settings), so no function env secret is required. Mirrors the cron and
+// tidal secret patterns.
+async function resolveBriefingConfig(admin: Admin): Promise<BriefingConfig> {
+  const e = (k: string) => { const v = Deno.env.get(k); return v && v.length ? v : undefined; };
+  let provider = e('BRIEFING_PROVIDER');
+  let model = e('BRIEFING_MODEL');
+  let baseUrl = e('BRIEFING_BASE_URL');
+  let key = e('BRIEFING_API_KEY');
+  const promptVersion = e('BRIEFING_PROMPT_VERSION') ?? PROMPT_VERSION_DEFAULT;
+  if (!provider || !model || !baseUrl || !key) {
+    try {
+      const { data } = await admin.rpc('briefing_config');
+      const cfg = (data ?? null) as { api_key?: string | null; settings?: { provider?: string; base_url?: string; model?: string } | null } | null;
+      const s = cfg?.settings ?? null;
+      provider = provider ?? (s?.provider || undefined);
+      model = model ?? (s?.model || undefined);
+      baseUrl = baseUrl ?? (s?.base_url || undefined);
+      key = key ?? (cfg?.api_key || undefined);
+    } catch { /* RPC absent (e.g. no Vault): fall through to env-only */ }
+  }
+  return { provider: (provider ?? 'anthropic').toLowerCase(), model, baseUrl, key, promptVersion };
+}
+
 Deno.serve(async (req) => {
   const pf = preflight(req); if (pf) return pf;
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   const body = await readJson<Body>(req);
   if (!body.passage_id) return json({ error: 'passage_id required' }, 400);
-  if (!(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
+  if (!(await cronAuthorized(req)) && !(await callerOwnsPassage(req, body.passage_id))) return json({ error: 'not found' }, 404);
   try {
     const admin = adminClient();
     const result = await generate(admin, body.passage_id, body.scope === 'remaining' ? 'remaining' : 'full', body.run_id);
@@ -90,10 +116,11 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
   const thresholds = { max_wind_kn: n(vessel.max_wind_kn), max_gust_kn: n(vessel.max_gust_kn), max_wave_m: n(vessel.max_wave_m), max_current_kn: n(vessel.max_current_kn), min_ukc_m: n(vessel.min_ukc_m), draft_m: n(vessel.draft_m) };
   const input = buildBriefingInput({ passageName: passage.name, departure: passage.actual_departure ?? passage.planned_departure, vesselName: vessel.name, thresholds, scope, legs, previousSummary: prevBriefing?.summary_text ?? null, materialChanges: changes });
   const inputHash = await sha256Hex(stableStringify(input));
-  const promptVersion = Deno.env.get('BRIEFING_PROMPT_VERSION') ?? PROMPT_VERSION_DEFAULT;
-  const provider = (Deno.env.get('BRIEFING_PROVIDER') ?? 'anthropic').toLowerCase();
+  const cfg = await resolveBriefingConfig(admin);
+  const promptVersion = cfg.promptVersion;
+  const provider = cfg.provider;
   const openaiCompatible = provider === 'openai' || provider === 'openai-compatible' || provider === 'synthetic';
-  const model = Deno.env.get('BRIEFING_MODEL') ?? (openaiCompatible ? '' : DEFAULT_BRIEFING_MODEL);
+  const model = cfg.model ?? (openaiCompatible ? '' : DEFAULT_BRIEFING_MODEL);
   const base = {
     passage_id: passageId, run_id: run.id, scope, confidence_level: input.confidence_level, confidence_triggers: input.confidence_triggers,
     material_changes: run.kind === 'recheck' ? changes : null, is_recheck: run.kind === 'recheck', prompt_version: promptVersion, input_snapshot: input, input_hash: inputHash,
@@ -105,8 +132,8 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
 
   let callModel: (msgs: Turn[]) => Promise<ModelResult>;
   if (openaiCompatible) {
-    const baseUrl = (Deno.env.get('BRIEFING_BASE_URL') ?? '').replace(/\/+$/, '');
-    const key = Deno.env.get('BRIEFING_API_KEY');
+    const baseUrl = (cfg.baseUrl ?? '').replace(/\/+$/, '');
+    const key = cfg.key;
     if (!baseUrl || !key || !model) {
       const reason = `Briefing unavailable: set BRIEFING_BASE_URL, BRIEFING_API_KEY and BRIEFING_MODEL for provider "${provider}"`;
       return { ok: false, unavailable: reason, briefing: await storeUnavailable(reason, 'unavailable') };
@@ -115,7 +142,10 @@ async function generate(admin: Admin, passageId: string, scope: 'full' | 'remain
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, max_tokens: 4096, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, ...msgs] }),
+        // Reasoning models (e.g. GLM via Synthetic) emit reasoning tokens before
+        // the JSON, counted toward the completion, so budget generously or the
+        // output truncates mid-object and the pipeline fails closed.
+        body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, ...msgs] }),
       });
       if (!res.ok) throw new Error(`briefing model HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const data = await res.json();

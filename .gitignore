@@ -13,4 +13,5 @@ supabase/functions/**/bundle
 *.log
 
 # Claude Code subagent worktrees (tooling scratch, never source)
+# Claude Code agent worktrees (ephemeral, isolated subagent workspaces)
 .claude/worktrees/
