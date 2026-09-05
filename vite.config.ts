@@ -11,7 +11,12 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      ...(previewMock ? [{ find: /^@\/lib\/supabase\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockSupabase.ts') }] : []),
+      ...(previewMock
+        ? [
+            { find: /^@\/lib\/supabase\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockSupabase.ts') },
+            { find: /^@\/lib\/weather-browse\/source\.ts$/, replacement: path.resolve(__dirname, 'src/preview/mockBrowseSource.ts') },
+          ]
+        : []),
       { find: '@', replacement: path.resolve(__dirname, 'src') },
     ],
   },
