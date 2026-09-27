@@ -41,7 +41,7 @@ export default function VesselSettings() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <PageHeader title={title} description="Cruise speed drives every ETA. Your limits drive the risk flag on every leg."
+      <PageHeader width="wide" title={title} description="Cruise speed drives every ETA. Your limits drive the risk flag on every leg."
         actions={id !== 'new' ? <Button variant="secondary" asChild><Link to="/vessels/new"><Plus /> New vessel</Link></Button> : undefined} />
       <div className="px-4 md:px-6 pb-8 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,380px)] max-w-[1280px] w-full mx-auto items-start">
         <aside className="card p-2 space-y-0.5">

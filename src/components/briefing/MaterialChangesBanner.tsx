@@ -16,12 +16,10 @@ export function MaterialChangesBanner({ changes, meta, onDismiss, className }: {
             <span className="t-card">{changes.length === 1 ? 'One thing changed since the last check' : `${changes.length} things changed since the last check`}</span>
             {meta && <span className="t-caption">{meta}</span>}
           </div>
-          <ul className="mt-2 grid gap-x-4 gap-y-1 text-[13px]" style={{ gridTemplateColumns: 'max-content max-content minmax(0, 1fr)' }}>
+          <ul className="mt-2 space-y-1 text-[13px] leading-snug">
             {changes.map((c, i) => { const l = changeLine(c); return (
-              <li key={i} className="contents">
-                <span className="text-text-1 font-medium whitespace-nowrap">{l.where}</span>
-                <span className="text-text-2 whitespace-nowrap">{l.what}</span>
-                <span className="min-w-0"><span className="num text-text-2">{l.from}</span> <span className="text-text-3">to</span> <span className="num font-medium text-text-1">{l.to}</span>{l.note && <span className="text-text-3">, {l.note}</span>}</span>
+              <li key={i} className="text-text-2">
+                <span className="text-text-1 font-medium">{l.where}</span>{l.where ? ' · ' : ''}{l.what.toLowerCase()} <span className="num">{l.from}</span> to <span className="num font-medium text-text-1">{l.to}</span>{l.note && <span className="text-text-3">, {l.note}</span>}
               </li>
             ); })}
           </ul>

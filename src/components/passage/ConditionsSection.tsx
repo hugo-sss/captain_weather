@@ -29,6 +29,7 @@ type Props = {
   waypoints: WaypointRow[]; legs: LegProfileData[]; selected: WaypointRow | null; selC: WaypointConditionsRow | null; selLeg: LegProfileData | null;
   onSelect: (wpId: string) => void; vessel: VesselRow | null; utcOffsetMin: number | null; detail: DetailLevel;
   band: { points: BandPoint[]; target: IngestTargetRow | null; comparisonSource: string };
+  noRun?: boolean;
 };
 
 const LEGEND = [
@@ -38,7 +39,7 @@ const LEGEND = [
   { label: 'Current', swatch: '#E6EDF7' },
 ];
 
-export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect, vessel, utcOffsetMin, detail, band }: Props) {
+export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect, vessel, utcOffsetMin, detail, band, noRun }: Props) {
   const maxWind = num(vessel?.max_wind_kn), maxWave = num(vessel?.max_wave_m);
   const legOptions = waypoints.slice(1).map((w, i) => ({ value: w.id, label: `Leg ${i + 1}`, title: `${waypoints[i]?.name ?? ''} to ${w.name ?? ''}` }));
   const fromName = selLeg?.from?.name ?? (selected ? waypoints[waypoints.findIndex((w) => w.id === selected.id) - 1]?.name : null) ?? null;
@@ -46,7 +47,7 @@ export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect,
   const picker = legOptions.length > 0 && selected ? (
     <>
       {legOptions.length <= 5 && <span className="hidden md:inline-flex"><Segmented label="Leg" value={selected.id} onChange={onSelect} options={legOptions} size="sm" /></span>}
-      <Select value={selected.id} onChange={(e) => onSelect(e.target.value)} aria-label="Leg" className={legOptions.length <= 5 ? 'md:hidden w-auto h-[30px] text-[13px]' : 'w-auto h-[30px] text-[13px]'}>
+      <Select value={selected.id} onChange={(e) => onSelect(e.target.value)} aria-label="Leg" className={legOptions.length <= 5 ? 'md:hidden w-full sm:w-auto h-[30px] text-[13px]' : 'w-full sm:w-auto h-[30px] text-[13px]'}>
         {legOptions.map((o) => <option key={o.value} value={o.value}>{o.label}: {o.title}</option>)}
       </Select>
     </>
@@ -62,6 +63,9 @@ export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect,
 
   return (
     <Section id="conditions" title="Conditions along the selected leg" description={<span>{title}{dist ? ` · ${dist}` : ''}{eta ? ` · arriving ${localDayTime(eta, utcOffsetMin)} local` : ''}</span>} actions={picker}>
+      {noRun ? (
+        <div className="card p-5 md:p-6 gap-hatch text-center text-[14px] text-text-2">Not checked yet. Check conditions to see wind, sea, current and squall risk along each leg and at each waypoint.</div>
+      ) : (
       <div className="card p-4 md:p-5 space-y-5">
         {selLeg ? (
           <div>
@@ -130,6 +134,7 @@ export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect,
           )}
         </div>
       </div>
+      )}
     </Section>
   );
 }

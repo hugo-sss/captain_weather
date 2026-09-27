@@ -3,7 +3,7 @@ import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveCont
 import type { BandPoint } from '@/hooks/useBandSeries.ts';
 import { ACCENT, FLAG_VIOLET, RISK_HEX } from '@/lib/risk-colors.ts';
 import { ChartFrame } from './ChartFrame.tsx';
-import { CHART_AXIS, CHART_GRID, CHART_TICK, CHART_TOOLTIP, fmtTick } from './chart-theme.ts';
+import { CHART_AXIS, CHART_FONT, CHART_GRID, CHART_TICK, CHART_TOOLTIP, fmtTick } from './chart-theme.ts';
 
 export function BandChart({ points, limitKn, etaIso, comparisonLabel, title, meta, bare }: { points: BandPoint[]; limitKn: number | null; etaIso?: string | null; comparisonLabel: string; title?: string; meta?: React.ReactNode; bare?: boolean }) {
   const legend = [{ label: 'Likely range (p10 to p90)', swatch: 'rgba(45,212,191,0.35)' }, { label: 'Median', swatch: ACCENT }, { label: comparisonLabel, swatch: FLAG_VIOLET, dashed: true }, ...(limitKn !== null ? [{ label: `Your limit ${limitKn} kn`, swatch: RISK_HEX.red }] : [])];
@@ -23,8 +23,8 @@ export function BandChart({ points, limitKn, etaIso, comparisonLabel, title, met
             <Area dataKey="band" name="Likely range" stroke="none" fill={ACCENT} fillOpacity={0.18} isAnimationActive={false} connectNulls />
             <Line dataKey="p50" name="Median" stroke={ACCENT} dot={false} strokeWidth={1.75} isAnimationActive={false} connectNulls />
             <Line dataKey="cmp" name={comparisonLabel} stroke={FLAG_VIOLET} strokeDasharray="4 3" dot={false} strokeWidth={1.25} isAnimationActive={false} connectNulls />
-            {limitKn !== null && <ReferenceLine y={limitKn} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} label={{ value: `limit ${limitKn} kn`, fill: RISK_HEX.red, fontSize: 10, position: 'insideTopRight', fontFamily: 'JetBrains Mono' }} />}
-            {etaIso && <ReferenceLine x={Date.parse(etaIso)} stroke="#E6EDF7" strokeOpacity={0.7} strokeDasharray="2 2" label={{ value: 'ETA', fill: '#E6EDF7', fontSize: 10, position: 'insideTopLeft', fontFamily: 'JetBrains Mono' }} />}
+            {limitKn !== null && <ReferenceLine y={limitKn} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} label={{ value: `limit ${limitKn} kn`, fill: RISK_HEX.red, fontSize: 10, position: 'insideTopRight', fontFamily: CHART_FONT }} />}
+            {etaIso && <ReferenceLine x={Date.parse(etaIso)} stroke="#E6EDF7" strokeOpacity={0.7} strokeDasharray="2 2" label={{ value: 'ETA', fill: '#E6EDF7', fontSize: 10, position: 'insideTopLeft', fontFamily: CHART_FONT }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

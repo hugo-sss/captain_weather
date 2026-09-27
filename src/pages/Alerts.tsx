@@ -40,9 +40,9 @@ export default function Alerts() {
   if (!loaded) return <PageSkeleton variant="list" />;
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <PageHeader title="Alerts" description={<span>{unread === 0 ? 'All read' : `${unread} unread`}. Checks that find changes, failed checks and new briefings land here.</span>}
+      <PageHeader width="narrow" title="Alerts" description={<span>{unread === 0 ? 'All read' : `${unread} unread`}. Checks that find changes, failed checks and new briefings land here.</span>}
         actions={<Button variant="secondary" onClick={() => void markAllRead()} disabled={unread === 0}><CheckCheck /> Mark all read</Button>} />
-      <div className="px-4 md:px-6 pb-8 max-w-3xl w-full space-y-6">
+      <div className="px-4 md:px-6 pb-8 max-w-3xl w-full mx-auto space-y-6">
         {error && <p className="text-[12px] text-risk-red">{error}</p>}
         {notifications.length === 0 && <EmptyState icon={Bell} title="No alerts yet" body="Scheduled checks that find material changes, failed checks and new briefings land here." />}
         {groups.map((g) => (

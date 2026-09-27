@@ -37,7 +37,7 @@ function BuilderForm({ id, passage, waypoints, vessels }: { id: string | undefin
           <label className="absolute top-2 right-2 z-[1000] rounded-lg border border-border-soft bg-bg-1/95 backdrop-blur-sm px-3 py-2 text-[12px] flex items-center gap-3 cursor-pointer shadow-card"><span>OpenSeaMap <span className="text-text-3">crowdsourced, not official</span></span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} aria-label="OpenSeaMap overlay" /></label>
           <div className="absolute bottom-2 left-2 z-[1000] rounded-lg border border-border-soft bg-bg-1/95 backdrop-blur-sm px-3 py-2 text-[12px] text-text-2 flex items-center gap-2 shadow-card"><MapPin className="h-3.5 w-3.5 text-accent" /> Click the map to drop a pin. Drag pins to move them.</div>
           {withEta.length >= 2 && (
-            <div className="absolute bottom-2 right-2 z-[1000] rounded-lg border border-border-soft bg-bg-1/95 backdrop-blur-sm px-3 py-2 text-[13px] flex items-center gap-2 max-w-[60%] shadow-card">
+            <div className="absolute bottom-8 right-2 z-[1000] rounded-lg border border-border-soft bg-bg-1/95 backdrop-blur-sm px-3 py-2 text-[13px] flex items-center gap-2 max-w-[60%] shadow-card">
               <span className="truncate font-medium">{withEta[0].name || 'WP1'}</span><ArrowRight className="h-3.5 w-3.5 text-text-3 shrink-0" /><span className="truncate font-medium">{dest.name || `WP${dest.sequence}`}</span>
               {preview && <span className="num text-text-3 shrink-0 ml-1">{preview.totalDistanceNm.toFixed(1)} nm</span>}
             </div>

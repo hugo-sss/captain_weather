@@ -65,9 +65,9 @@ export default function Passages() {
   const underwayCount = summaries.filter((s) => s.passage.status === 'active').length;
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <PageHeader title="Passages" description={<span>{summaries.length === 0 ? 'Nothing planned yet' : `${summaries.length} ${summaries.length === 1 ? 'passage' : 'passages'}${underwayCount ? `, ${underwayCount} underway` : ''}`}</span>}
+      <PageHeader width="medium" title="Passages" description={<span>{summaries.length === 0 ? 'Nothing planned yet' : `${summaries.length} ${summaries.length === 1 ? 'passage' : 'passages'}${underwayCount ? `, ${underwayCount} underway` : ''}`}</span>}
         actions={<Button asChild><Link to="/passages/new"><Plus /> New passage</Link></Button>} />
-      <div className="px-4 md:px-6 pb-8 max-w-5xl w-full space-y-8">
+      <div className="px-4 md:px-6 pb-8 max-w-5xl w-full mx-auto space-y-8">
         {vessels.length === 0 && (
           <EmptyState icon={Ship} title="Add your vessel first" body="Cruise speed and limits drive every ETA and risk flag." action={<Button asChild><Link to="/vessels/new"><Plus /> Add vessel</Link></Button>} compact />
         )}

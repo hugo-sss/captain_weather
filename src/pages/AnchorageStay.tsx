@@ -57,7 +57,7 @@ export default function AnchorageStay() {
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <OfflineBanner />
-      <PageHeader back={{ to: `/passages/${data.passage.id}`, label: data.passage.name }} title={`Stay at ${wp.name ?? `waypoint ${wp.sequence}`}`} description={<span>{desc}</span>} />
+      <PageHeader width="wide" back={{ to: `/passages/${data.passage.id}`, label: data.passage.name }} title={`Stay at ${wp.name ?? `waypoint ${wp.sequence}`}`} description={<span>{desc}</span>} />
       <div className="px-4 md:px-6 pb-8 space-y-8 max-w-[1280px] w-full mx-auto">
         <StayWindowView a={anch} utcOffsetMin={off} minUkcM={num(data.vessel?.min_ukc_m)} />
         <div className="grid gap-4 lg:grid-cols-[1fr_320px] items-start">

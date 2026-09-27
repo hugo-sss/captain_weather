@@ -178,7 +178,8 @@ export default function Passage() {
     </div>
   );
   const prevSummary = (br.briefing?.input_snapshot as { previous_briefing_summary?: string } | null)?.previous_briefing_summary ?? null;
-  const etaMarks = waypoints.filter((w) => w.eta).map((w) => ({ t: Date.parse(byWp.get(w.id)?.eta ?? w.eta!), label: `${w.sequence}. ${w.name ?? ''}` }));
+  const selEta = selC?.eta ?? selected?.eta ?? null;
+  const etaMarks = selEta ? [{ t: Date.parse(selEta), label: 'Arrive' }] : [];
   const routeLine = `${waypoints.length} waypoints, ${distancePhrase(totalNm)}${vessel ? `, ${vessel.name}` : ''}`;
   const checkedSub = run ? (run.trigger === 'scheduled' || underway ? 'Checks again automatically each hour' : run.kind === 'recheck' ? 'Re-check by hand' : 'First check') : null;
 
@@ -217,18 +218,18 @@ export default function Passage() {
           <div className="grid gap-4 lg:grid-cols-[55fr_45fr] items-start">
             <div className="hidden md:block lg:sticky lg:top-[132px]">{mapBlock('h-[440px]')}</div>
             {waypoints.length >= 2 && (
-              <div className="md:hidden space-y-3">
+              <div className="md:hidden space-y-3 min-w-0">
                 <div className="card overflow-hidden"><MapHeaderStrip from={`${waypoints[0].sequence}. ${waypoints[0].name ?? ''}`} to={`${last?.sequence}. ${last?.name ?? ''}`} totalNm={totalNm} legs={waypoints.slice(1).map((w) => ({ nm: num(w.leg_distance_nm) ?? 0, risk: legInto.get(w.id)?.summary.worstRisk ?? (byWp.get(w.id)?.risk_flag as RiskFlag | undefined) ?? null }))} open={showMapMobile} onToggle={() => setShowMapMobile((v) => !v)} /></div>
                 {showMapMobile && mapBlock('h-72')}
               </div>
             )}
-            <LegList passageId={passage.id} waypoints={waypoints} byWp={byWp} legInto={legInto} selectedId={selected?.id ?? null} onSelect={setSelectedId} utcOffsetMin={off} detail={detail} underway={underway} onArrived={underway ? (wpId, v) => void setArrived(wpId, v) : undefined} totalNm={totalNm} />
+            <LegList passageId={passage.id} waypoints={waypoints} byWp={byWp} legInto={legInto} selectedId={selected?.id ?? null} onSelect={setSelectedId} utcOffsetMin={off} detail={detail} underway={underway} onArrived={underway ? (wpId, v) => void setArrived(wpId, v) : undefined} totalNm={totalNm} noRun={!hasRun} />
           </div>
         </Section>
 
-        <ConditionsSection waypoints={waypoints} legs={legs} selected={selected} selC={selC} selLeg={selLeg} onSelect={setSelectedId} vessel={vessel} utcOffsetMin={off} detail={detail} band={{ points: band.points, target: atmosTarget, comparisonSource }} />
+        <ConditionsSection waypoints={waypoints} legs={legs} selected={selected} selC={selC} selLeg={selLeg} onSelect={setSelectedId} vessel={vessel} utcOffsetMin={off} detail={detail} band={{ points: band.points, target: atmosTarget, comparisonSource }} noRun={!hasRun} />
 
-        <TideSection passageId={passage.id} selected={selected} selC={selC} vessel={vessel} tideSwell={tideSwell} nowMs={nowMs} etaMarks={etaMarks} etaIso={selC?.eta ?? selected?.eta ?? null} detail={detail} showSwell={showSwell} onShowSwell={setShowSwell} />
+        <TideSection passageId={passage.id} selected={selected} selC={selC} vessel={vessel} tideSwell={tideSwell} nowMs={nowMs} etaMarks={etaMarks} etaIso={selEta} detail={detail} showSwell={showSwell} onShowSwell={setShowSwell} noRun={!hasRun} />
 
         <DepartureWindowsSection derived={dep.windows} sampled={dep.sampled} suggested={(br.briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? []} utcOffsetMin={off} originName={waypoints[0]?.name ?? null} />
 

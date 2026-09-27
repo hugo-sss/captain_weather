@@ -41,7 +41,7 @@ export function BuilderPanel({ draft, vessels, id, onSaved, onCancel, saved, emb
             <p className="t-caption mt-0.5">{editing ? 'Changes apply when you save.' : embedded ? 'Tap the map to drop pins.' : 'A passage needs at least two waypoints.'}</p>
           </div>
           <div><Label htmlFor="passage-name">Passage name</Label><Input id="passage-name" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} placeholder="Phuket to Ko Lanta" /></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div><Label htmlFor="passage-vessel">Vessel</Label><Select id="passage-vessel" value={vesselId} onChange={(e) => setMeta({ ...meta, vessel_id: e.target.value })}><option value="">Choose</option>{vessels.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</Select></div>
             <div><Label htmlFor="passage-departure">Departure, local time</Label><Input id="passage-departure" type="datetime-local" value={toLocalInput(meta.planned_departure)} onChange={(e) => setMeta({ ...meta, planned_departure: fromLocalInput(e.target.value) ?? meta.planned_departure })} /></div>
           </div>
@@ -77,10 +77,10 @@ export function BuilderPanel({ draft, vessels, id, onSaved, onCancel, saved, emb
       </div>
       <div className={cn('border-t border-border-soft bg-bg-1 space-y-4', embedded ? 'p-4' : 'p-5')}>
         {preview && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Stat label="Distance" value={<span className="num">{distancePhrase(preview.totalDistanceNm)}</span>} />
             <Stat label="Under way" value={<span className="num">{durationPhrase(preview.totalHours)}</span>} />
-            <Stat label="Arrival" value={<span className="num">{localDateTime(preview.arrival, prefs.local_utc_offset_min)}</span>} sub="local" />
+            <Stat label="Arrival" value={<span className="num">{localDateTime(preview.arrival, prefs.local_utc_offset_min)}</span>} sub="Local time" className="col-span-2" />
             {preview.errors.length > 0 && <div className="col-span-3 text-[12px] text-risk-red">{preview.errors.join(', ')}</div>}
           </div>
         )}

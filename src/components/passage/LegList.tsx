@@ -19,12 +19,14 @@ type Props = {
   passageId: string; waypoints: WaypointRow[]; byWp: Map<string, WaypointConditionsRow>; legInto: Map<string, LegProfileData>;
   selectedId: string | null; onSelect: (id: string) => void; utcOffsetMin: number | null; detail: DetailLevel;
   underway: boolean; onArrived?: (wpId: string, arrived: boolean) => void; totalNm: number;
+  /** No conditions run yet: say so once instead of three "No data" lines per leg. */
+  noRun?: boolean;
 };
 
 const asRisk = (v: unknown): RiskFlag => (v === 'green' || v === 'amber' || v === 'red' ? v : 'unknown');
 const worse = (a: RiskFlag, b: RiskFlag) => (RISK_RANK[b] > RISK_RANK[a] ? b : a);
 
-export function LegList({ passageId, waypoints, byWp, legInto, selectedId, onSelect, utcOffsetMin, detail, underway, onArrived, totalNm }: Props) {
+export function LegList({ passageId, waypoints, byWp, legInto, selectedId, onSelect, utcOffsetMin, detail, underway, onArrived, totalNm, noRun }: Props) {
   const arrivedCount = waypoints.filter((w) => w.arrived).length;
   const doneNm = waypoints.filter((w) => w.arrived).reduce((s, w) => s + (num(w.leg_distance_nm) ?? 0), 0);
   const pct = totalNm > 0 ? Math.round((doneNm / totalNm) * 100) : 0;
@@ -82,19 +84,23 @@ export function LegList({ passageId, waypoints, byWp, legInto, selectedId, onSel
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <RiskPill flag={risk} reasons={[...((c?.risk_reasons as string[] | null) ?? []), ...(worsePoint?.riskReasons ?? [])]} size="sm" />
-                {underway && onArrived && <label className="flex items-center gap-1.5 text-[11px] text-text-3 cursor-pointer" onClick={(e) => e.stopPropagation()}>Arrived <Switch checked={wp.arrived} onCheckedChange={(v) => onArrived(wp.id, v)} aria-label={`Arrived at ${wp.name}`} /></label>}
+                {noRun ? <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-2 h-5 px-2 text-[11px] font-medium text-text-3">Not checked</span> : <RiskPill flag={risk} reasons={[...((c?.risk_reasons as string[] | null) ?? []), ...(worsePoint?.riskReasons ?? [])]} size="sm" />}
               </div>
             </div>
-            <div className="mt-2.5 space-y-0.5 text-[14px] leading-snug">
-              {wind ? <p>{wind}{detail === 'detailed' && <GustSourceChip source={c?.gust_source} className="ml-1.5" />}</p> : <p className="text-text-3" title="No atmospheric grid point within 55 km or 6 h of the ETA">No wind data at this point</p>}
-              {sea ? <p className="text-text-2">{sea}</p> : <p className="text-text-3" title="No marine grid point within 55 km">No sea state data</p>}
-              {wp.is_anchorage && (tide ? <p className="text-text-2">Tide {tide} on arrival</p> : <p className="text-text-3">No tide data</p>)}
-            </div>
-            {(c?.source_disagreement || worseMidLeg) && (
+            {noRun ? (
+              <p className="mt-2.5 text-[14px] text-text-3">Not checked yet</p>
+            ) : (
+              <div className="mt-2.5 space-y-0.5 text-[14px] leading-snug">
+                {wind ? <p>{wind}{detail === 'detailed' && <GustSourceChip source={c?.gust_source} className="ml-1.5" />}</p> : <p className="text-text-3" title="No atmospheric grid point within 55 km or 6 h of the ETA">No wind data at this point</p>}
+                {sea ? <p className="text-text-2">{sea}</p> : <p className="text-text-3" title="No marine grid point within 55 km">No sea state data</p>}
+                {wp.is_anchorage && (tide ? <p className="text-text-2">Tide {tide} on arrival</p> : <p className="text-text-3">No tide data</p>)}
+              </div>
+            )}
+            {(c?.source_disagreement || worseMidLeg || (underway && onArrived)) && (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <DisagreementBadge active={!!c?.source_disagreement} speedDelta={num(c?.wind_speed_delta_kn)} dirDelta={num(c?.wind_dir_delta_deg)} primary={c?.atmos_source} comparison={c?.comparison_source} size="sm" />
                 {worseMidLeg && worsePoint && <span className="inline-flex items-center gap-1.5 rounded-md bg-bg-2 px-1.5 h-[18px] text-[11px] font-medium text-text-2 whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full" style={{ background: RISK_HEX[leg.summary.worstRisk] }} />Worse mid-leg: {Math.round(leg.summary.maxWindP90 ?? worsePoint.windP90 ?? 0)} kn at {localClock(worsePoint.eta, utcOffsetMin)}</span>}
+                {underway && onArrived && <label className="ml-auto flex items-center gap-2 text-[12px] text-text-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>{wp.arrived ? 'Arrived' : 'Mark arrived'} <Switch checked={wp.arrived} onCheckedChange={(v) => onArrived(wp.id, v)} aria-label={`Arrived at ${wp.name}`} /></label>}
               </div>
             )}
           </article>

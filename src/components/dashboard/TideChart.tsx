@@ -5,7 +5,7 @@ import { Area, CartesianGrid, ComposedChart, ReferenceDot, ReferenceLine, Respon
 import { ACCENT } from '@/lib/risk-colors.ts';
 import { deriveTideExtremes, mergeExtremes, type TideExtreme, type TideSeriesPoint } from '@/lib/tide.ts';
 import { ChartFrame } from './ChartFrame.tsx';
-import { CHART_AXIS, CHART_GRID, CHART_TICK, CHART_TOOLTIP, fmtTick } from './chart-theme.ts';
+import { CHART_AXIS, CHART_FONT, CHART_GRID, CHART_TICK, CHART_TOOLTIP, fmtTick } from './chart-theme.ts';
 import { cn } from '@/lib/utils.ts';
 
 export type EtaMark = { t: number; label: string };
@@ -38,15 +38,15 @@ export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title
             {!print && <Tooltip {...CHART_TOOLTIP} labelFormatter={(t) => fmtTick(Number(t))} formatter={(v: unknown) => [`${Number(v).toFixed(2)} m ${datum ?? ''}`.trim(), 'tide']} cursor={{ stroke: '#9AA8C0', strokeDasharray: '2 2' }} />}
             <Area dataKey="height" name="tide" stroke={line} strokeWidth={1.5} fill={line} fillOpacity={print ? 0.08 : 0.18} dot={false} isAnimationActive={false} />
             {ext.map((e) => (
-              <ReferenceDot key={`${e.type}-${e.t}`} x={e.t} y={e.height} r={3} fill={ink} stroke="none" label={compact ? undefined : { value: ext.length > 6 ? `${hhmm(e.t).slice(0, 2)}Z ${e.height.toFixed(2)}` : `${e.type === 'high' ? 'HW' : 'LW'} ${hhmm(e.t)} · ${e.height.toFixed(2)} m`, position: e.type === 'high' ? 'top' : 'bottom', fill: ink, fontSize: 10, fontFamily: 'JetBrains Mono', dy: e.type === 'high' ? -2 : 2 }} />
+              <ReferenceDot key={`${e.type}-${e.t}`} x={e.t} y={e.height} r={3} fill={ink} stroke="none" label={compact || ext.length > 6 ? undefined : { value: `${e.type === 'high' ? 'HW' : 'LW'} ${hhmm(e.t)} · ${e.height.toFixed(2)} m`, position: e.type === 'high' ? 'top' : 'bottom', fill: ink, fontSize: 10, fontFamily: CHART_FONT, dy: e.type === 'high' ? -2 : 2 }} />
             ))}
-            {etaMarks.map((m) => <ReferenceLine key={m.label + m.t} x={m.t} stroke={muted} strokeDasharray="3 3" strokeOpacity={0.9} label={{ value: m.label, fill: muted, fontSize: 10, position: 'insideTopLeft', fontFamily: 'JetBrains Mono' }} />)}
-            {nowMs !== null && nowMs !== undefined && nowMs >= pts[0].t && nowMs <= pts[pts.length - 1].t && <ReferenceLine x={nowMs} stroke={ink} strokeWidth={1.25} label={{ value: 'now', fill: ink, fontSize: 10, position: 'insideBottomRight', fontFamily: 'JetBrains Mono' }} />}
+            {etaMarks.map((m) => <ReferenceLine key={m.label + m.t} x={m.t} stroke={muted} strokeDasharray="3 3" strokeOpacity={0.9} label={{ value: m.label, fill: muted, fontSize: 10, position: 'insideTopLeft', fontFamily: CHART_FONT }} />)}
+            {nowMs !== null && nowMs !== undefined && nowMs >= pts[0].t && nowMs <= pts[pts.length - 1].t && <ReferenceLine x={nowMs} stroke={ink} strokeWidth={1.25} label={{ value: 'now', fill: ink, fontSize: 10, position: 'insideBottomRight', fontFamily: CHART_FONT }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
     );
-  const extremesRow = ext.length > 0 ? <div className={cn('num text-[10px] flex flex-wrap gap-x-2 gap-y-0.5 mt-1', print ? 'text-[#444]' : 'text-text-2')}>{ext.map((e) => <span key={`${e.type}-${e.t}`}><span className={print ? 'font-semibold' : e.type === 'high' ? 'text-text-1' : 'text-text-3'}>{e.type === 'high' ? 'HW' : 'LW'}</span> {fmtTick(e.t)} · {e.height.toFixed(2)} m</span>)}</div> : null;
+  const extremesRow = ext.length > 0 && !compact ? <div className={cn('flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px]', print ? 'text-[#444]' : 'text-text-2')}>{ext.map((e) => <span key={`${e.type}-${e.t}`} className="inline-flex items-baseline gap-1 whitespace-nowrap"><span className={cn('font-medium', print ? '' : e.type === 'high' ? 'text-text-1' : 'text-text-3')}>{e.type === 'high' ? 'High' : 'Low'}</span><span className="num">{fmtTick(e.t)}</span><span className="num text-text-1">{e.height.toFixed(2)} m</span></span>)}</div> : null;
   if (bare) return <ChartFrame bare title={title} meta={meta} legend={compact ? undefined : legend} className={className}>{body}{extremesRow}</ChartFrame>;
   return <ChartFrame title={title} meta={meta} legend={legend} className={className}>{body}{extremesRow}</ChartFrame>;
 }

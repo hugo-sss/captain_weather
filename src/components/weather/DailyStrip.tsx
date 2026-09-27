@@ -35,7 +35,7 @@ export function DailyStrip({ daily, target, pinned, open, onToggle }: { daily: P
                   );
                 })}
               </div>
-              <div className="mt-2 text-[11px] text-text-3 flex justify-between"><span>High and low °C, max wind, rain</span><span>{MODEL_LABEL[d.run.model]}, {d.run.runLabel.replace('≈ ', 'about ')}</span></div>
+              <div className="mt-2 text-[11px] text-text-3 flex flex-wrap justify-between gap-x-3 gap-y-0.5"><span>High and low °C, max wind, rain</span><span>{MODEL_LABEL[d.run.model]}, {d.run.runLabel.replace('≈ ', 'about ')}</span></div>
             </>
           ) : (
             <div className="grid grid-cols-7 gap-1">{Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-[78px]" />)}</div>

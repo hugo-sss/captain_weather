@@ -179,7 +179,7 @@ export default function WeatherMap() {
                         <RiskDot flag={s.worst} className="mt-1.5" />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline gap-2"><span className="font-medium truncate">{s.passage.name}</span><span className="t-caption shrink-0">{s.passage.status === 'active' ? 'Underway' : whenPhrase(departs, utcOffset, nowMs, 'relative')}</span></span>
-                          <span className="block t-caption truncate">{headline}</span>
+                          <span className="block t-caption line-clamp-2">{headline}</span>
                         </span>
                       </Link>
                     </li>
@@ -243,7 +243,7 @@ export default function WeatherMap() {
             <LayerBar field={field} setField={wb.setField} setParticles={wb.setParticles} radarOn={wb.radarOn} setRadarOn={wb.setRadarOn} compact={mobile} />
           </div>
           {!mobile && (
-            <div className="absolute right-2 bottom-[84px] z-[1000] pointer-events-none">
+            <div className="absolute right-2 top-[84px] z-[1000] pointer-events-none">
               <FieldLegend kind={field} className="pointer-events-auto" />
             </div>
           )}

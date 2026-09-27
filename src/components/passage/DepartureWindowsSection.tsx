@@ -38,7 +38,7 @@ export function DepartureWindowsSection({ derived, sampled, suggested, utcOffset
             ))}
           </ul>
         )}
-        <p className="text-[12px] text-text-3 mt-3">Both kinds are hints from the data ({sampled} forecast hours scanned). Verify against official forecasts.</p>
+        {sampled > 0 && <p className="text-[12px] text-text-3 mt-3">Both kinds are hints from the data ({sampled} forecast hours scanned). Verify against official forecasts.</p>}
       </div>
     </Section>
   );

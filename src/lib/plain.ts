@@ -91,10 +91,9 @@ const CONF_WORD: Record<ConfidenceLevel, string> = { high: 'High', moderate: 'Mo
 export function confidencePhrase(level: ConfidenceLevel | string | null | undefined, triggers: string[] | null | undefined, where?: string | null): string {
   const lv = (level === 'high' || level === 'moderate' || level === 'low' ? level : 'low') as ConfidenceLevel;
   const head = `${CONF_WORD[lv]} confidence`;
-  const reasons = [...new Set((triggers ?? []).map(triggerWords))];
+  const reasons = [...new Set((triggers ?? []).map(triggerWords))].map((r) => (r === 'models disagree' && where ? `models disagree at ${where}` : r));
   if (reasons.length === 0) return head;
-  const tail = where ? `${reasons.join(', ')} at ${where}` : reasons.join(', ');
-  return `${head}: ${tail}`;
+  return `${head}: ${reasons.join(', ')}`;
 }
 
 // ---- Time ------------------------------------------------------------------------------------

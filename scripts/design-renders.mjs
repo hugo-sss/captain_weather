@@ -25,7 +25,9 @@ async function loadPlaywright() {
 }
 
 const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: 'dark' };
-const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' };
+// isMobile stays off: Chromium's mobile emulation lays the page out against a taller "URL bar hidden" viewport
+// (innerHeight 1015 for an 844 px screen), which pushes bottom-anchored UI such as the tab bar out of the capture.
+const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: false, hasTouch: true, colorScheme: 'dark' };
 
 /** Weather landing (phase 4): the map is fixture-backed, so nothing here needs the network. */
 const mapPoint = async (page, fx, fy) => { const box = await page.locator('.leaflet-container').first().boundingBox(); return [box.x + box.width * fx, box.y + box.height * fy]; };
