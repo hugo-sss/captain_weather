@@ -6,6 +6,7 @@ const UNIT: Record<string, string> = { wind_p90_kn: ' kn', wave_height_m: ' m', 
 const val = (v: unknown, field: string) => (v === true ? 'disagree' : v === false ? 'agree' : v === null || v === undefined ? 'no data' : `${String(v)}${UNIT[field] ?? ''}`);
 
 /** "Ko Ha: Wind, high end 24 kn to 31 kn, moved > 5 kn" split into its parts. */
-export function changeLine(c: MaterialChange): { where: string; what: string; from: string; to: string; note: string | null } {
-  return { where: c.waypoint_name ?? (c.sequence !== undefined ? `Waypoint ${c.sequence}` : ''), what: FIELD[c.field] ?? c.field.replace(/_/g, ' '), from: val(c.from, c.field), to: val(c.to, c.field), note: c.note ?? null };
+export function changeLine(c: MaterialChange): { where: string; what: string; from: string; to: string; note: string | null; numeric: boolean } {
+  const from = val(c.from, c.field), to = val(c.to, c.field);
+  return { where: c.waypoint_name ?? (c.sequence !== undefined ? `Waypoint ${c.sequence}` : ''), what: FIELD[c.field] ?? c.field.replace(/_/g, ' '), from, to, note: c.note ?? null, numeric: /\d/.test(from) || /\d/.test(to) };
 }

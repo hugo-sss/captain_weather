@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agePhrase, compassWord, confidencePhrase, currentPhrase, dayPartPhrase, distancePhrase, durationPhrase, etaPhrase, keyNumber, relativePhrase, riskHeadline, seaPhrase, sourceName, squallPhrase, statusWord, tidePhrase, whenPhrase, windPhrase, worstStretch, type HeadlineCondition, type HeadlineLeg, type HeadlineWaypoint } from '../src/lib/plain.ts';
+import { agePhrase, compassWord, plainReason, confidencePhrase, currentPhrase, dayPartPhrase, distancePhrase, durationPhrase, etaPhrase, keyNumber, relativePhrase, riskHeadline, seaPhrase, sourceName, squallPhrase, statusWord, tidePhrase, whenPhrase, windPhrase, worstStretch, type HeadlineCondition, type HeadlineLeg, type HeadlineWaypoint } from '../src/lib/plain.ts';
 import { BANNED_PATTERNS, findViolations } from '../supabase/functions/_shared/language-rules.ts';
 
 const OFF = 420; // UTC+07, Phuket
@@ -120,6 +120,19 @@ describe('risk headline', () => {
     expect(keyNumber({ reasons: ['UKC estimate 0.8 m < min_ukc 1 m'], gust: 30, wind: 20, wave: 1, ukc: 0.8, current: null })).toBe('0.8 m under the keel');
     expect(keyNumber({ reasons: ['squall likely: CAPE 1350 J/kg'], gust: null, wind: null, wave: null, ukc: null, current: null })).toBe('squalls likely');
     expect(keyNumber({ reasons: [], gust: null, wind: null, wave: null, ukc: null, current: null })).toBeNull();
+  });
+  it('turns engine reasons into sentences', () => {
+    expect(plainReason('gust p90 38 kn > max_gust 35 kn')).toBe('Gusts to 38 kn are over your 35 kn gust limit');
+    expect(plainReason('wave 2.3 m > max_wave 2 m')).toBe('2.3 m sea is over your 2 m wave limit');
+    expect(plainReason('wind p90 22 kn > 0.75×max_wind 25 kn')).toBe('High-end wind 22 kn is over three quarters of your 25 kn wind limit');
+    expect(plainReason('UKC estimate 0.8 m < min_ukc 1 m')).toBe('Clearance under the keel 0.8 m is under your 1 m minimum');
+    expect(plainReason('UKC estimate 1.2 m < 1.5×min_ukc 1 m')).toBe('Clearance under the keel 1.2 m is within 1.5 times your 1 m minimum');
+    expect(plainReason('squall risk likely (CAPE 1350 J/kg, precip prob 70%)')).toBe('Squalls likely: CAPE 1350 J/kg, 70% chance of rain');
+    expect(plainReason('squall likely: CAPE 1350 J/kg, precip prob 70 %')).toBe('Squalls likely: CAPE 1350 J/kg, 70% chance of rain');
+    expect(plainReason('no marine data within 55 km / ±6 h of ETA')).toBe('No sea state data within 55 km or 6 h of the ETA');
+    expect(plainReason('primary and comparison models disagree on wind')).toBe('The two wind models disagree here');
+    expect(plainReason('something new from the engine')).toBe('something new from the engine');
+    for (const s of ['gust p90 38 kn > max_gust 35 kn', 'wind p90 22 kn > 0.75×max_wind 25 kn', 'no marine data in the stay window']) expect(findViolations(plainReason(s))).toEqual([]);
   });
   it('never uses advisory language or dashes', () => {
     expect(BANNED_PATTERNS.length).toBeGreaterThan(0);

@@ -64,8 +64,8 @@ export default function AnchorageStay() {
           <Section title="Tide over the stay" description="Station tide, never a model sea level." actions={<label className="flex items-center gap-2 text-[13px] text-text-2 cursor-pointer">Show swell and under-keel clearance <Switch checked={showSwell} onCheckedChange={setShowSwell} aria-label="Show swell and under-keel clearance" /></label>}>
             <div className="card p-4 md:p-5">
               {showSwell
-                ? <TideSwellChart bare points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} />
-                : <TideChart bare series={tideSwell.points.map((p) => ({ t: p.t, height: p.tide }))} datum={tideSwell.datum} nowMs={nowMs} etaMarks={[...(stayStart ? [{ t: Date.parse(stayStart), label: 'Arrive' }] : []), ...(stayEnd ? [{ t: Date.parse(stayEnd), label: 'Leave' }] : [])]} />}
+                ? <TideSwellChart bare points={tideSwell.points} minUkcM={num(data.vessel?.min_ukc_m)} datum={tideSwell.datum} etaIso={stayStart} stayEndIso={stayEnd} utcOffsetMin={off} />
+                : <TideChart bare series={tideSwell.points.map((p) => ({ t: p.t, height: p.tide }))} datum={tideSwell.datum} nowMs={nowMs} utcOffsetMin={off} etaMarks={[...(stayStart ? [{ t: Date.parse(stayStart), label: 'Arrive' }] : []), ...(stayEnd ? [{ t: Date.parse(stayEnd), label: 'Leave' }] : [])]} />}
             </div>
           </Section>
           <Section title="Wind during the stay" description="Where the wind blows from, hour by hour. Colour is the median speed.">

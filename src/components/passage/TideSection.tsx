@@ -18,12 +18,12 @@ import { ukcBasisText } from '@/lib/gebco.ts';
 type Props = {
   passageId: string; selected: WaypointRow | null; selC: WaypointConditionsRow | null; vessel: VesselRow | null;
   tideSwell: { points: TideSwellPoint[]; datum: string | null; tidalTarget: IngestTargetRow | null };
-  nowMs: number; etaMarks: EtaMark[]; etaIso: string | null; detail: DetailLevel;
+  nowMs: number; etaMarks: EtaMark[]; etaIso: string | null; detail: DetailLevel; utcOffsetMin: number | null;
   showSwell: boolean; onShowSwell: (v: boolean) => void;
   noRun?: boolean;
 };
 
-export function TideSection({ passageId, selected, selC, vessel, tideSwell, nowMs, etaMarks, etaIso, detail, showSwell, onShowSwell, noRun }: Props) {
+export function TideSection({ passageId, selected, selC, vessel, tideSwell, nowMs, etaMarks, etaIso, detail, utcOffsetMin, showSwell, onShowSwell, noRun }: Props) {
   const tideOnly = tideSwell.points.map((p) => ({ t: p.t, height: p.tide }));
   const draft = num(vessel?.draft_m), depth = num(selected?.charted_depth_m), ukc = num(selC?.ukc_estimate_m), minUkc = num(vessel?.min_ukc_m);
   const ukcTone = ukc !== null && minUkc !== null ? (ukc < minUkc ? 'red' : ukc < minUkc * 1.5 ? 'amber' : 'default') : 'default';
@@ -38,8 +38,8 @@ export function TideSection({ passageId, selected, selC, vessel, tideSwell, nowM
       <div className="grid gap-4 lg:grid-cols-[1fr_300px] items-start">
         <div className="card p-4 md:p-5 min-w-0">
           {showSwell
-            ? <TideSwellChart bare points={tideSwell.points} minUkcM={minUkc} datum={tideSwell.datum} etaIso={etaIso} stayEndIso={selected?.is_anchorage ? selected.planned_departure_from_here : null} />
-            : <TideChart bare series={tideOnly} datum={tideSwell.datum} nowMs={nowMs} etaMarks={etaMarks} />}
+            ? <TideSwellChart bare points={tideSwell.points} minUkcM={minUkc} datum={tideSwell.datum} etaIso={etaIso} stayEndIso={selected?.is_anchorage ? selected.planned_departure_from_here : null} utcOffsetMin={utcOffsetMin} />
+            : <TideChart bare series={tideOnly} datum={tideSwell.datum} nowMs={nowMs} etaMarks={etaMarks} utcOffsetMin={utcOffsetMin} />}
         </div>
         <div className="card p-4 md:p-5 grid grid-cols-2 lg:grid-cols-1 gap-4">
           <Stat label="Tide at arrival" value={selC ? tidePhrase(selC.tide_height_m, selC.tide_datum, selC.tide_state) : null} reason={noRun ? 'Not checked yet' : 'No tide data for this waypoint'} hint="Height above the station datum at the ETA, and whether it is rising or falling." />

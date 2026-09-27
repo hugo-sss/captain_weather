@@ -1,6 +1,6 @@
 import type { RiskFlag } from '@/types/domain.ts';
 import { RISK_HEX } from '@/lib/risk-colors.ts';
-import { riskWord } from '@/lib/plain.ts';
+import { plainReason, riskWord } from '@/lib/plain.ts';
 import { cn } from '@/lib/utils.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 
@@ -26,6 +26,6 @@ export function RiskPill({ flag, reasons, className, size = 'md' }: { flag: Risk
   );
   if (!reasons?.length) return pill;
   return (
-    <Tooltip><TooltipTrigger asChild>{pill}</TooltipTrigger><TooltipContent><div className="font-medium mb-0.5">Why</div><ul className="list-disc pl-3 space-y-0.5 text-text-2">{reasons.map((r) => <li key={r}>{r}</li>)}</ul></TooltipContent></Tooltip>
+    <Tooltip><TooltipTrigger asChild>{pill}</TooltipTrigger><TooltipContent><div className="font-medium mb-0.5">Why</div><ul className="list-disc pl-3 space-y-0.5 text-text-2">{reasons.map((r) => <li key={r}>{plainReason(r)}</li>)}</ul></TooltipContent></Tooltip>
   );
 }

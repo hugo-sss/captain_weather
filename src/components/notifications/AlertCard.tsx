@@ -29,7 +29,7 @@ export function AlertCard({ n, now, onOpen, dense }: { n: NotificationRow; now: 
         </div>
         {changes.length > 0 ? (
           <ul className={cn('mt-1.5 space-y-0.5 text-text-2', dense ? 'text-[12px]' : 'text-[13px]')}>
-            {changes.map((c, i) => { const l = changeLine(c); return <li key={i}><span className="text-text-1">{l.where}</span>: {l.what.toLowerCase()} <span className="num">{l.from}</span> to <span className="num text-text-1">{l.to}</span>{l.note ? `, ${l.note}` : ''}</li>; })}
+            {changes.map((c, i) => { const l = changeLine(c); return <li key={i}><span className="text-text-1">{l.where}</span>: {l.what.toLowerCase()} <span className={cn(l.numeric && 'num')}>{l.from}</span> to <span className={cn('text-text-1', l.numeric && 'num')}>{l.to}</span>{l.note ? `, ${l.note}` : ''}</li>; })}
           </ul>
         ) : (
           <p className={cn('mt-1 text-text-2 leading-snug', dense ? 'text-[12px] line-clamp-2' : 'text-[13px]')}>{n.body}</p>

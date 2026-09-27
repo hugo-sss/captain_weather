@@ -47,23 +47,26 @@ export function ThresholdPreview({ vesselId, thresholds, draftM }: { vesselId: s
         <div className="t-card">{passage.name}</div>
         <div className="t-caption">{changed === 0 ? 'No flags change' : <span className="text-flag-violet">{changed} {changed === 1 ? 'flag changes' : 'flags change'}</span>}</div>
       </div>
-      <table className="data-table">
-        <thead><tr><th className="r">No.</th><th>Waypoint</th><th>Now</th><th /><th>With these limits</th></tr></thead>
+      <div className="overflow-x-auto">
+      <table className="data-table table-fixed [&_td]:px-1.5 [&_th]:px-1.5">
+        <colgroup><col /><col style={{ width: 78 }} /><col style={{ width: 22 }} /><col style={{ width: 86 }} /></colgroup>
+        <thead><tr><th>Waypoint</th><th>Now</th><th /><th>With edits</th></tr></thead>
         <tbody>
           {rows.map(({ wp, c }) => {
             const r = flagFor(wp, c);
             const diff = r.flag !== c.risk_flag;
             return (
               <tr key={wp.id} className={diff ? 'is-flagged' : undefined}>
-                <td className="num text-text-3 r">{wp.sequence}</td><td className="truncate max-w-[140px]">{wp.name}</td>
+                <td className="truncate"><span className="num text-text-3 mr-2">{wp.sequence}</span>{wp.name}</td>
                 <td><RiskPill flag={c.risk_flag as RiskFlag} size="sm" /></td>
                 <td className="text-text-3"><ArrowRight className="h-3.5 w-3.5" /></td>
-                <td><span className="inline-flex items-center gap-2"><RiskPill flag={r.flag} reasons={r.reasons} size="sm" />{diff && <span className="text-[11px] text-flag-violet">Changes</span>}</span></td>
+                <td><RiskPill flag={r.flag} reasons={r.reasons} size="sm" /></td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

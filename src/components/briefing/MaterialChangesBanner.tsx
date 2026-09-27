@@ -19,7 +19,7 @@ export function MaterialChangesBanner({ changes, meta, onDismiss, className }: {
           <ul className="mt-2 space-y-1 text-[13px] leading-snug">
             {changes.map((c, i) => { const l = changeLine(c); return (
               <li key={i} className="text-text-2">
-                <span className="text-text-1 font-medium">{l.where}</span>{l.where ? ' · ' : ''}{l.what.toLowerCase()} <span className="num">{l.from}</span> to <span className="num font-medium text-text-1">{l.to}</span>{l.note && <span className="text-text-3">, {l.note}</span>}
+                <span className="text-text-1 font-medium">{l.where}</span>{l.where ? ' · ' : ''}{l.what.toLowerCase()} <span className={cn(l.numeric && 'num')}>{l.from}</span> to <span className={cn('font-medium text-text-1', l.numeric && 'num')}>{l.to}</span>{l.note && <span className="text-text-3">, {l.note}</span>}
               </li>
             ); })}
           </ul>

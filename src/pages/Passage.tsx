@@ -229,7 +229,7 @@ export default function Passage() {
 
         <ConditionsSection waypoints={waypoints} legs={legs} selected={selected} selC={selC} selLeg={selLeg} onSelect={setSelectedId} vessel={vessel} utcOffsetMin={off} detail={detail} band={{ points: band.points, target: atmosTarget, comparisonSource }} noRun={!hasRun} />
 
-        <TideSection passageId={passage.id} selected={selected} selC={selC} vessel={vessel} tideSwell={tideSwell} nowMs={nowMs} etaMarks={etaMarks} etaIso={selEta} detail={detail} showSwell={showSwell} onShowSwell={setShowSwell} noRun={!hasRun} />
+        <TideSection passageId={passage.id} selected={selected} selC={selC} vessel={vessel} tideSwell={tideSwell} nowMs={nowMs} etaMarks={etaMarks} etaIso={selEta} detail={detail} utcOffsetMin={off} showSwell={showSwell} onShowSwell={setShowSwell} noRun={!hasRun} />
 
         <DepartureWindowsSection derived={dep.windows} sampled={dep.sampled} suggested={(br.briefing?.suggested_departure_windows as { start: string; end: string; reason: string }[] | null) ?? []} utcOffsetMin={off} originName={waypoints[0]?.name ?? null} />
 

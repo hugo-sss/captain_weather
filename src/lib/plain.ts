@@ -309,3 +309,28 @@ export function worstStretch(conditions: HeadlineCondition[], legs: HeadlineLeg[
   if (!best) return null;
   return { name: best.name, risk: best.risk, eta: best.eta, number: keyNumber(best) };
 }
+
+const fraction = (f: number) => (Math.abs(f - 0.75) < 0.001 ? 'three quarters' : Math.abs(f - 0.5) < 0.001 ? 'half' : `${Math.round(f * 100)}%`);
+const REASON_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^wind p50 ([\d.]+) kn > max_wind ([\d.]+) kn$/, (m) => `Wind ${m[1]} kn is over your ${m[2]} kn wind limit`],
+  [/^gust p90 ([\d.]+) kn > max_gust ([\d.]+) kn$/, (m) => `Gusts to ${m[1]} kn are over your ${m[2]} kn gust limit`],
+  [/^wave ([\d.]+) m > max_wave ([\d.]+) m$/, (m) => `${m[1]} m sea is over your ${m[2]} m wave limit`],
+  [/^current ([\d.]+) kn > max_current ([\d.]+) kn$/, (m) => `Current ${m[1]} kn is over your ${m[2]} kn current limit`],
+  [/^UKC estimate ([\d.]+) m < min_ukc ([\d.]+) m$/, (m) => `Clearance under the keel ${m[1]} m is under your ${m[2]} m minimum`],
+  [/^wind p90 ([\d.]+) kn > ([\d.]+) ?[x×] ?max_wind ([\d.]+) kn$/, (m) => `High-end wind ${m[1]} kn is over ${fraction(Number(m[2]))} of your ${m[3]} kn wind limit`],
+  [/^gust p90 ([\d.]+) kn > ([\d.]+) ?[x×] ?max_gust ([\d.]+) kn$/, (m) => `Gusts to ${m[1]} kn are over ${fraction(Number(m[2]))} of your ${m[3]} kn gust limit`],
+  [/^wave ([\d.]+) m > ([\d.]+) ?[x×] ?max_wave ([\d.]+) m$/, (m) => `${m[1]} m sea is over ${fraction(Number(m[2]))} of your ${m[3]} m wave limit`],
+  [/^UKC estimate ([\d.]+) m < ([\d.]+) ?[x×] ?min_ukc ([\d.]+) m$/, (m) => `Clearance under the keel ${m[1]} m is within ${m[2]} times your ${m[3]} m minimum`],
+  [/^primary and comparison models disagree on wind$/, () => 'The two wind models disagree here'],
+  [/^no atmospheric data at this waypoint$/, () => 'No wind data at this waypoint'],
+  [/^squall (?:risk )?(likely|possible)(?::| \()\s*CAPE ([\d>< ]+) J\/kg, precip prob ([\d>< ]+) ?%\)?$/, (m) => `Squalls ${m[1]}: CAPE ${m[2].trim()} J/kg, ${m[3].trim()}% chance of rain`],
+  [/^squall risk (likely|possible) during the stay$/, (m) => `Squalls ${m[1]} during the stay`],
+  [/^no (\w+) data within ([\d.]+) km \/ ±(\d+) h of ETA$/, (m) => `No ${m[1] === 'marine' ? 'sea state' : m[1]} data within ${m[2]} km or ${m[3]} h of the ETA`],
+  [/^no (\w+) data in the stay window$/, (m) => `No ${m[1] === 'marine' ? 'sea state' : m[1]} data in the stay window`],
+];
+/** The engine's risk reason ("gust p90 38 kn > max_gust 35 kn") as a sentence a captain would say. Unknown shapes pass through. */
+export function plainReason(reason: string): string {
+  const r = reason.trim();
+  for (const [re, fn] of REASON_RULES) { const m = r.match(re); if (m) return fn(m); }
+  return r;
+}

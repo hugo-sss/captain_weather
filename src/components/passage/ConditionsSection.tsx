@@ -6,7 +6,7 @@ import { num } from '@/types/domain.ts';
 import type { LegProfileData } from '@/lib/leg-profile.ts';
 import { asSquall, etaDeltaMinutes, fmtEtaDelta } from '@/lib/leg-profile.ts';
 import type { BandPoint } from '@/hooks/useBandSeries.ts';
-import { compassWord, currentPhrase, localDayTime, sourceName, squallPhrase, utcStamp, windPhrase } from '@/lib/plain.ts';
+import { compassWord, currentPhrase, localDayTime, plainReason, sourceName, squallPhrase, utcStamp, windPhrase } from '@/lib/plain.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { fmtUtc } from '@/lib/time.ts';
 import { ukcBasisText } from '@/lib/gebco.ts';
@@ -123,12 +123,12 @@ export function ConditionsSection({ waypoints, selected, selC, selLeg, onSelect,
               {selC && (selC.risk_reasons as string[]).length > 0 && (
                 <div className="mt-3 tile px-4 py-3">
                   <div className="label mb-1">Why this flag</div>
-                  <ul className="text-[13px] space-y-0.5">{(selC.risk_reasons as string[]).map((r) => <li key={r} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0" style={{ background: RISK_HEX[selC.risk_flag as keyof typeof RISK_HEX] ?? RISK_HEX.unknown }} /><span className="num text-text-2">{r}</span></li>)}</ul>
+                  <ul className="text-[13px] space-y-0.5">{(selC.risk_reasons as string[]).map((r) => <li key={r} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0" style={{ background: RISK_HEX[selC.risk_flag as keyof typeof RISK_HEX] ?? RISK_HEX.unknown }} /><span className="text-text-2">{plainReason(r)}</span></li>)}</ul>
                 </div>
               )}
               <div className="mt-5">
                 <div className="t-card mb-2">Wind at the waypoint over time</div>
-                <BandChart bare points={band.points} limitKn={maxWind} etaIso={eta} comparisonLabel={sourceName(band.comparisonSource) ?? band.comparisonSource} meta={band.target ? `grid point ${Number(band.target.grid_lat).toFixed(2)}, ${Number(band.target.grid_lon).toFixed(2)}` : undefined} />
+                <BandChart bare points={band.points} limitKn={maxWind} etaIso={eta} utcOffsetMin={utcOffsetMin} comparisonLabel={sourceName(band.comparisonSource) ?? band.comparisonSource} meta={band.target ? `grid point ${Number(band.target.grid_lat).toFixed(2)}, ${Number(band.target.grid_lon).toFixed(2)}` : undefined} />
               </div>
             </>
           )}

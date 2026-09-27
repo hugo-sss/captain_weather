@@ -253,7 +253,7 @@ export default function WeatherMap() {
 
           {inspect && cardXY && (
             <PointCard lat={inspect.lat} lon={inspect.lon} pinned={inspect.pinned} x={cardXY.x} y={cardXY.y} mobile={mobile} timeIso={timeIso} run={run} leadHours={leadHours}
-              point={wb.point} pointLoading={wb.pointLoading} gridValues={gridValues} onClose={wb.unpin} onPin={() => wb.settle(inspect.lat, inspect.lon, true, cardXY.x, cardXY.y)} />
+              point={wb.point} pointLoading={wb.pointLoading} gridValues={gridValues} onClose={wb.unpin} onPin={() => wb.settle(inspect.lat, inspect.lon, true, cardXY.x, cardXY.y)} utcOffsetMin={utcOffset} />
           )}
 
           {/* Mobile: the floating button that brings the sheet back. */}

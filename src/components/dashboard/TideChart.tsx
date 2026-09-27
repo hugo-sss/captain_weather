@@ -5,7 +5,7 @@ import { Area, CartesianGrid, ComposedChart, ReferenceDot, ReferenceLine, Respon
 import { ACCENT } from '@/lib/risk-colors.ts';
 import { deriveTideExtremes, mergeExtremes, type TideExtreme, type TideSeriesPoint } from '@/lib/tide.ts';
 import { ChartFrame } from './ChartFrame.tsx';
-import { CHART_AXIS, CHART_FONT, CHART_GRID, CHART_TICK, CHART_TOOLTIP, fmtTick } from './chart-theme.ts';
+import { CHART_AXIS, CHART_FONT, CHART_GRID, CHART_TICK, CHART_TOOLTIP, clockFor, hourTicks, tickFormatterFor } from './chart-theme.ts';
 import { cn } from '@/lib/utils.ts';
 
 export type EtaMark = { t: number; label: string };
@@ -13,14 +13,15 @@ export type EtaMark = { t: number; label: string };
 type Props = {
   series: TideSeriesPoint[]; extremes?: TideExtreme[] | null; datum: string | null;
   nowMs?: number | null; etaMarks?: EtaMark[];
+  /** Local time for every label; null means the browser's zone. */
+  utcOffsetMin?: number | null;
   title?: React.ReactNode; meta?: React.ReactNode; className?: string;
   /** compact: shorter plot for the point card. bare: no ChartFrame chrome. print: ink-friendly colours. */
   compact?: boolean; bare?: boolean; print?: boolean;
 };
 
-const hhmm = (t: number) => { const d = new Date(t); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}Z`; };
-
-export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title, meta, className, compact, bare, print }: Props) {
+export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], utcOffsetMin = null, title, meta, className, compact, bare, print }: Props) {
+  const fmtTick = tickFormatterFor(utcOffsetMin), hhmm = clockFor(utcOffsetMin);
   const pts = series.filter((p) => p.height !== null).map((p) => ({ t: p.t, height: p.height as number }));
   const ext = mergeExtremes(extremes, deriveTideExtremes(series));
   const ink = print ? '#111111' : '#E6EDF7', muted = print ? '#555555' : '#9AA8C0', line = print ? '#000000' : ACCENT, grid = print ? '#DDDDDD' : CHART_GRID, axis = print ? '#777777' : CHART_AXIS;
@@ -33,7 +34,7 @@ export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={pts} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
             <CartesianGrid stroke={grid} strokeDasharray="2 4" vertical={false} />
-            <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={fmtTick} stroke={axis} tick={tick} tickLine={false} axisLine={{ stroke: grid }} minTickGap={compact ? 64 : 48} />
+            <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} ticks={hourTicks(pts[0].t, pts[pts.length - 1].t, utcOffsetMin, compact ? 3 : 5)} tickFormatter={fmtTick} stroke={axis} tick={tick} tickLine={false} axisLine={{ stroke: grid }} minTickGap={compact ? 64 : 48} />
             <YAxis stroke={axis} tick={tick} tickLine={false} axisLine={false} unit=" m" width={58} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(1)} />
             {!print && <Tooltip {...CHART_TOOLTIP} labelFormatter={(t) => fmtTick(Number(t))} formatter={(v: unknown) => [`${Number(v).toFixed(2)} m ${datum ?? ''}`.trim(), 'tide']} cursor={{ stroke: '#9AA8C0', strokeDasharray: '2 2' }} />}
             <Area dataKey="height" name="tide" stroke={line} strokeWidth={1.5} fill={line} fillOpacity={print ? 0.08 : 0.18} dot={false} isAnimationActive={false} />

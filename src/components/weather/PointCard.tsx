@@ -20,6 +20,8 @@ type Props = {
   timeIso: string | null; run: RunInfo | null; leadHours: number | null;
   point: PointForecast | null; pointLoading: boolean; gridValues: CardValues | null; marineReason?: string | null;
   onClose: () => void; onPin: () => void;
+  /** Local time for the tide chart; null means the browser's zone. */
+  utcOffsetMin?: number | null;
 };
 
 const fmt = (v: number | null | undefined, dp: number) => (v === null || v === undefined || !Number.isFinite(v) ? null : v.toFixed(dp));
@@ -75,7 +77,9 @@ function Sparkline({ point, timeIso }: { point: PointForecast; timeIso: string |
   );
 }
 
-export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHours, point, pointLoading, gridValues, onClose, onPin }: Props) {
+const CARD_H = 560;
+
+export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHours, point, pointLoading, gridValues, onClose, onPin, utcOffsetMin = null }: Props) {
   // Prefer the hourly point series at the time bar's step; fall back to the interpolated grid.
   let v: CardValues | null = gridValues;
   let sourceLabel = 'grid, 3-hourly';
@@ -93,9 +97,9 @@ export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHo
   const seaLine = seaPhrase(v?.wave_height ?? null, v?.wave_period ?? null, v?.swell_wave_height ?? null, v?.swell_wave_direction ?? null);
   const style: React.CSSProperties = mobile ? {} : { left: x + 18, top: y + 18 };
   const flipX = !mobile && typeof window !== 'undefined' && x + 18 + 330 > window.innerWidth;
-  const flipY = !mobile && typeof window !== 'undefined' && y + 18 + 560 > window.innerHeight;
   if (flipX) { style.left = undefined; style.right = window.innerWidth - x + 18; }
-  if (flipY) { style.top = undefined; style.bottom = window.innerHeight - y + 18; }
+  // Keep the whole card on screen: slide it up when the pin sits low rather than flipping it above the pin.
+  if (!mobile && typeof window !== 'undefined') style.top = Math.max(12, Math.min(y + 18, window.innerHeight - 12 - CARD_H));
   return (
     <div role="dialog" aria-label={`Weather at ${lat.toFixed(2)}, ${lon.toFixed(2)}`}
       className={cn('z-[1150] rounded-xl border border-border-soft bg-bg-1/[0.97] backdrop-blur-md shadow-pop text-[14px]', mobile ? 'absolute left-2 right-2 bottom-2 max-h-[72%] overflow-y-auto' : 'fixed w-[328px] max-h-[calc(100vh-24px)] overflow-y-auto pointer-events-auto')}
@@ -123,14 +127,14 @@ export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHo
           </div>
         )}
         {point ? <Sparkline point={point} timeIso={timeIso} /> : pointLoading ? <Skeleton className="h-9" /> : null}
-        <TideHere lat={lat} lon={lon} loadingPoint={pointLoading && point === null} />
+        <TideHere lat={lat} lon={lon} loadingPoint={pointLoading && point === null} utcOffsetMin={utcOffsetMin} />
       </div>
     </div>
   );
 }
 
 /** Station tide for this point, fetched only on click (credits) and cached per station for the session. */
-function TideHere({ lat, lon, loadingPoint }: { lat: number; lon: number; loadingPoint: boolean }) {
+function TideHere({ lat, lon, loadingPoint, utcOffsetMin }: { lat: number; lon: number; loadingPoint: boolean; utcOffsetMin: number | null }) {
   const tide = usePointTide(lat, lon, 2);
   const nowMs = useNow(60_000);
   const d = tide.data;
@@ -151,7 +155,7 @@ function TideHere({ lat, lon, loadingPoint }: { lat: number; lon: number; loadin
             <span className="text-text-1 truncate">{d.station.name}</span>
             <span className="num text-text-3 shrink-0">{d.station.distance_km.toFixed(1)} km away, datum {d.datum}{d.cached ? ', cached' : ''}</span>
           </div>
-          <TideChart bare compact series={d.series.map((s) => ({ t: Date.parse(s.time), height: s.height_m, state: s.state }))} extremes={d.extremes.map((e) => ({ t: Date.parse(e.time), height: e.height_m, type: e.type }))} datum={d.datum} nowMs={nowMs} className="mt-1" />
+          <TideChart bare compact series={d.series.map((s) => ({ t: Date.parse(s.time), height: s.height_m, state: s.state }))} extremes={d.extremes.map((e) => ({ t: Date.parse(e.time), height: e.height_m, type: e.type }))} datum={d.datum} nowMs={nowMs} utcOffsetMin={utcOffsetMin} className="mt-1" />
           <div className="text-[11px] text-text-3 mt-0.5">Station {d.station.id}, TidesAtlas. Not a model sea level.</div>
         </div>
       )}

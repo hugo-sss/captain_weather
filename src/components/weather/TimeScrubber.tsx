@@ -53,15 +53,31 @@ export function TimeScrubber({ times, index, onChange, marks = [], utcOffsetMin,
     else if (e.key === ' ') { e.preventDefault(); setPlaying((p) => !p); }
   };
 
-  // Day boundaries in local time for the labels.
-  const days: { key: string; label: string; left: number }[] = [];
+  // Day boundaries in local time for the labels. Labels that would sit on top of each other are
+  // dropped (a sliver of the first day gives way to the next), and one near the right end anchors
+  // to the edge so it never runs into the time block.
+  const all: { key: string; label: string; left: number }[] = [];
   if (n) {
     let last = '';
     for (let i = 0; i < n; i++) {
       const ms = Date.parse(times[i]);
       const p = localParts(ms, offset);
-      if (p.dayKey !== last) { last = p.dayKey; days.push({ key: p.dayKey, label: `${p.day} ${p.date}`, left: pos(ms) }); }
+      if (p.dayKey !== last) { last = p.dayKey; all.push({ key: p.dayKey, label: `${p.day} ${p.date}`, left: pos(ms) }); }
     }
+  }
+  const minGap = compact ? 24 : 9; // roughly one label width as a share of the track
+  const days: { key: string; label: string; left: number; atEnd: boolean }[] = [];
+  for (const d of all) {
+    const prev = days[days.length - 1];
+    if (prev && d.left - prev.left < minGap) {
+      if (prev.left === 0 && days.length === 1) days.pop(); else continue;
+    }
+    const atEnd = d.left > 100 - minGap;
+    if (atEnd) {
+      const p2 = days[days.length - 1];
+      if (p2 && 100 - p2.left < minGap * 2) continue;
+    }
+    days.push({ ...d, atEnd });
   }
   const cur = n ? localParts(Date.parse(times[index] ?? times[0]), offset) : null;
   const utcCur = n ? new Date(Date.parse(times[index] ?? times[0])).toISOString().slice(11, 16) : '';
@@ -73,8 +89,8 @@ export function TimeScrubber({ times, index, onChange, marks = [], utcOffsetMin,
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-px" />}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="relative h-4 text-[11px] text-text-3">
-            {days.map((d) => <span key={d.key} className="absolute top-0 whitespace-nowrap" style={{ left: `${d.left}%` }}>{d.label}</span>)}
+          <div className="relative h-4 overflow-hidden text-[11px] text-text-3">
+            {days.map((d) => <span key={d.key} className="absolute top-0 whitespace-nowrap" style={d.atEnd ? { right: 0 } : { left: `${d.left}%` }}>{d.label}</span>)}
           </div>
           <div ref={track} role="slider" tabIndex={0} aria-label="Forecast time" aria-valuemin={0} aria-valuemax={Math.max(0, n - 1)} aria-valuenow={index} aria-valuetext={cur ? `${cur.day} ${cur.date} ${cur.hh}:${cur.mm}` : ''}
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onKeyDown={onKey}

@@ -7,7 +7,7 @@ import { SquallBadge } from '@/components/dashboard/SquallBadge.tsx';
 import { ConfidenceDot } from '@/components/briefing/ConfidenceDot.tsx';
 import { Stat } from '@/components/ui/stat.tsx';
 import { EmptyState } from '@/components/ui/empty-state.tsx';
-import { compassWord, durationPhrase, localDateTime, localDayTime } from '@/lib/plain.ts';
+import { compassWord, durationPhrase, localDateTime, localDayTime, plainReason } from '@/lib/plain.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { RISK_HEX } from '@/lib/risk-colors.ts';
 
@@ -43,7 +43,7 @@ export function StayWindowView({ a, utcOffsetMin, minUkcM = null }: { a: Anchora
       {reasons.length > 0 && (
         <div className="tile px-4 py-3">
           <div className="label mb-1">Why this flag</div>
-          <ul className="text-[13px] space-y-0.5">{reasons.map((r) => <li key={r} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0" style={{ background: RISK_HEX[(a.risk_flag as RiskFlag) ?? 'unknown'] }} /><span className="num text-text-2">{r}</span></li>)}</ul>
+          <ul className="text-[13px] space-y-0.5">{reasons.map((r) => <li key={r} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0" style={{ background: RISK_HEX[(a.risk_flag as RiskFlag) ?? 'unknown'] }} /><span className="text-text-2">{plainReason(r)}</span></li>)}</ul>
         </div>
       )}
     </div>

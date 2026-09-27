@@ -121,7 +121,7 @@ function PassageCard({ s, compact, now, utcOffsetMin, onDuplicate, onDelete, bus
   const onKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
   if (compact) {
     return (
-      <article role="link" tabIndex={0} onClick={open} onKeyDown={onKey} className="group card flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-bg-elev focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <article role="link" tabIndex={0} onClick={open} onKeyDown={onKey} className="group card min-w-0 flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-bg-elev focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
         <RiskDot flag={s.worst} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2"><Link to={href} onClick={(e) => e.stopPropagation()} className="font-medium text-text-1 truncate">{p.name}</Link><span className="t-caption truncate">{route}</span></div>
@@ -133,7 +133,7 @@ function PassageCard({ s, compact, now, utcOffsetMin, onDuplicate, onDelete, bus
     );
   }
   return (
-    <article role="link" tabIndex={0} onClick={open} onKeyDown={onKey} className={cn('group card p-4 md:p-5 cursor-pointer transition-colors hover:bg-bg-elev focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', p.status === 'active' && 'border-accent/30')}>
+    <article role="link" tabIndex={0} onClick={open} onKeyDown={onKey} className={cn('group card min-w-0 p-4 md:p-5 cursor-pointer transition-colors hover:bg-bg-elev focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', p.status === 'active' && 'border-accent/30')}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -146,11 +146,11 @@ function PassageCard({ s, compact, now, utcOffsetMin, onDuplicate, onDelete, bus
         {menu}
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <RiskDot flag={s.worst} />
+        <div className="flex items-start gap-2.5 min-w-0 basis-full sm:basis-auto sm:flex-1">
+          <RiskDot flag={s.worst} className="mt-[5px]" />
           <span className="text-[14px] text-text-1 leading-snug">{headline}</span>
         </div>
-        <div className="flex items-center gap-3 t-caption shrink-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 t-caption shrink-0 pl-[18px] sm:pl-0">
           {s.confidence ? <ConfidenceDot level={s.confidence} withLabel /> : null}
           {s.runAt && <span>Checked {agePhrase(s.runAt, now)}</span>}
         </div>
