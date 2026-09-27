@@ -35,7 +35,7 @@ describe('notification unread counting', () => {
     expect(relativeTime('2026-09-05T02:00:00Z', now)).toBe('10 h ago');
     expect(relativeTime('2026-09-01T12:00:00Z', now)).toBe('4 d ago');
     expect(notificationHref(n({ kind: 'material_change' }))).toBe('/passages/p1');
-    expect(notificationHref(n({ kind: 'recheck_failed' }))).toBe('/passages/p1/active');
+    expect(notificationHref(n({ kind: 'recheck_failed' }))).toBe('/passages/p1');
     expect(notificationHref(n({ passage_id: null }))).toBeNull();
   });
 });

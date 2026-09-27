@@ -20,14 +20,14 @@ type Props = {
 
 const hhmm = (t: number) => { const d = new Date(t); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}Z`; };
 
-export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title = 'Tide', meta, className, compact, bare, print }: Props) {
+export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title, meta, className, compact, bare, print }: Props) {
   const pts = series.filter((p) => p.height !== null).map((p) => ({ t: p.t, height: p.height as number }));
   const ext = mergeExtremes(extremes, deriveTideExtremes(series));
   const ink = print ? '#111111' : '#E6EDF7', muted = print ? '#555555' : '#9AA8C0', line = print ? '#000000' : ACCENT, grid = print ? '#DDDDDD' : CHART_GRID, axis = print ? '#777777' : CHART_AXIS;
   const tick = print ? { ...CHART_TICK, fill: '#555555' } : CHART_TICK;
-  const legend = [{ label: `tide height (${datum ?? 'datum unknown'})`, swatch: print ? '#000' : 'rgba(45,212,191,0.5)' }, { label: 'HW / LW', swatch: ink }, ...(etaMarks.length ? [{ label: 'waypoint ETA', swatch: muted, dashed: true }] : [])];
+  const legend = [{ label: `Tide height above ${datum ?? 'datum'}`, swatch: print ? '#000' : 'rgba(45,212,191,0.5)' }, { label: 'High and low water', swatch: ink }, ...(etaMarks.length ? [{ label: 'Waypoint ETA', swatch: muted, dashed: true }] : [])];
   const body = pts.length === 0
-    ? <div className={cn('gap-hatch rounded-md border border-dashed border-border flex items-center justify-center text-center px-6 text-xs text-text-3', compact ? 'h-28' : 'h-48')}>no station tide series for this window</div>
+    ? <div className={cn('gap-hatch rounded-lg flex items-center justify-center text-center px-6 text-[13px] text-text-3', compact ? 'h-28' : 'h-48')}>No station tide series for this window</div>
     : (
       <div className={compact ? 'h-32' : 'h-52'}>
         <ResponsiveContainer width="100%" height="100%">
@@ -47,6 +47,6 @@ export function TideChart({ series, extremes, datum, nowMs, etaMarks = [], title
       </div>
     );
   const extremesRow = ext.length > 0 ? <div className={cn('num text-[10px] flex flex-wrap gap-x-2 gap-y-0.5 mt-1', print ? 'text-[#444]' : 'text-text-2')}>{ext.map((e) => <span key={`${e.type}-${e.t}`}><span className={print ? 'font-semibold' : e.type === 'high' ? 'text-text-1' : 'text-text-3'}>{e.type === 'high' ? 'HW' : 'LW'}</span> {fmtTick(e.t)} · {e.height.toFixed(2)} m</span>)}</div> : null;
-  if (bare) return <div className={className}>{body}{extremesRow}</div>;
+  if (bare) return <ChartFrame bare title={title} meta={meta} legend={compact ? undefined : legend} className={className}>{body}{extremesRow}</ChartFrame>;
   return <ChartFrame title={title} meta={meta} legend={legend} className={className}>{body}{extremesRow}</ChartFrame>;
 }

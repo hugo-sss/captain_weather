@@ -19,12 +19,15 @@ export function compassPoint(deg: number): string {
   return pts[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
 }
 
+/** Placeholder for a missing number in dense cells. Stats and cards show "No data" with the reason instead. */
+export const NO_DATA = 'n/a';
+
 export function fmtNum(v: number | null | undefined, dp = 1): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  if (v === null || v === undefined || !Number.isFinite(v)) return NO_DATA;
   return v.toFixed(dp);
 }
 
 export function fmtDeg(v: number | null | undefined): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  if (v === null || v === undefined || !Number.isFinite(v)) return NO_DATA;
   return `${Math.round(v).toString().padStart(3, '0')}°`;
 }

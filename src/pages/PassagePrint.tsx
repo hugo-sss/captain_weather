@@ -73,7 +73,7 @@ export default function PassagePrint() {
         </div>
         <table className="num text-[11px]"><tbody>
           <tr><td className="pr-3 text-[#555]">Departure</td><td>{fmtUtc(passage.actual_departure ?? passage.planned_departure)}{passage.actual_departure ? ' (actual)' : ' (planned)'}</td></tr>
-          <tr><td className="pr-3 text-[#555]">Arrival</td><td>{arrival ? fmtUtc(arrival) : '—'} · {totalNm.toFixed(1)} nm · {arrival ? fmtHours((Date.parse(arrival) - Date.parse(passage.actual_departure ?? passage.planned_departure)) / 3_600_000) : '—'}</td></tr>
+          <tr><td className="pr-3 text-[#555]">Arrival</td><td>{arrival ? fmtUtc(arrival) : 'n/a'} · {totalNm.toFixed(1)} nm · {arrival ? fmtHours((Date.parse(arrival) - Date.parse(passage.actual_departure ?? passage.planned_departure)) / 3_600_000) : 'n/a'}</td></tr>
           <tr><td className="pr-3 text-[#555]">Run</td><td>{run ? `${run.kind} · ${run.trigger} · ${fmtUtc(run.completed_at ?? run.created_at)}` : 'none'}</td></tr>
           <tr><td className="pr-3 text-[#555]">Generated</td><td>{fmtUtc(generated)}</td></tr>
           <tr><td className="pr-3 text-[#555]">Worst flag</td><td className="font-semibold">{flagWord(worst)}</td></tr>
@@ -86,9 +86,9 @@ export default function PassagePrint() {
           <table className="print-table num w-full text-[10px]">
             <thead>
               <tr>
-                <th>#</th><th className="text-left">Waypoint</th><th>ETA UTC</th><th>Planned</th><th>Δ sea state</th><th>Lead h</th>
+                <th>#</th><th className="text-left">Waypoint</th><th>ETA UTC</th><th>Planned</th><th>Sea state change</th><th>Lead h</th>
                 <th>Wind p10/50/90</th><th>Dir</th><th>Gust p90 · src</th><th>Wave m/s</th><th>Swell m/°</th><th>Tide m</th><th>Current</th><th>UKC m</th>
-                <th>Cmp kn/° · models</th><th>Squall</th><th>Risk</th><th>Conf</th>
+                <th>Comparison kn/° · models</th><th>Squall</th><th>Risk</th><th>Conf</th>
                 <th>Leg max p90</th><th>Leg max Hs</th><th>Leg max cur</th><th>Leg worst</th><th>Leg squall</th><th>Loss %</th>
               </tr>
             </thead>
@@ -97,14 +97,14 @@ export default function PassagePrint() {
                 const c = byWp.get(w.id); const l = legInto.get(w.id); const d = etaDeltaMinutes(c?.eta_planned, c?.eta);
                 return (
                   <tr key={w.id}>
-                    <td>{w.sequence}</td><td className="text-left font-sans">{w.name ?? ''}{w.is_anchorage ? ' (anch.)' : ''}</td><td>{fmtUtc(c?.eta ?? w.eta)}</td><td>{c?.eta_planned ? fmtUtc(c.eta_planned) : '—'}</td><td>{d === null ? '—' : fmtEtaDelta(d)}</td><td>{c?.lead_time_hours === null || c?.lead_time_hours === undefined ? '—' : Math.round(Number(c.lead_time_hours))}</td>
-                    <td>{c && c.wind_p50_kn !== null ? `${fmtNum(num(c.wind_p10_kn), 0)}/${fmtNum(num(c.wind_p50_kn), 0)}/${fmtNum(num(c.wind_p90_kn), 0)}` : '—'}</td><td>{c?.wind_dir_mean_deg === null || c?.wind_dir_mean_deg === undefined ? '—' : `${Math.round(num(c.wind_dir_mean_deg) ?? 0)}°`}</td><td>{fmtNum(num(c?.gust_p90_kn), 0)}<span className="font-sans text-[#555]"> {gustSourceChip(c?.gust_source)?.label ?? ''}</span></td>
-                    <td>{c?.wave_height_m === null || c?.wave_height_m === undefined ? '—' : `${fmtNum(num(c.wave_height_m), 1)}/${fmtNum(num(c.wave_period_s), 0)}`}</td><td>{c?.swell_height_m === null || c?.swell_height_m === undefined ? '—' : `${fmtNum(num(c.swell_height_m), 1)}/${Math.round(num(c.swell_dir_deg) ?? 0)}`}</td>
-                    <td>{c?.tide_height_m === null || c?.tide_height_m === undefined ? '—' : `${fmtNum(num(c.tide_height_m), 2)} ${c.tide_datum ?? ''} ${c.tide_state ?? ''}`}</td><td>{c?.current_speed_kn === null || c?.current_speed_kn === undefined ? '—' : `${fmtNum(num(c.current_speed_kn), 1)}→${Math.round(num(c.current_dir_deg) ?? 0)}°`}</td>
+                    <td>{w.sequence}</td><td className="text-left font-sans">{w.name ?? ''}{w.is_anchorage ? ' (anch.)' : ''}</td><td>{fmtUtc(c?.eta ?? w.eta)}</td><td>{c?.eta_planned ? fmtUtc(c.eta_planned) : 'n/a'}</td><td>{d === null ? 'n/a' : fmtEtaDelta(d)}</td><td>{c?.lead_time_hours === null || c?.lead_time_hours === undefined ? 'n/a' : Math.round(Number(c.lead_time_hours))}</td>
+                    <td>{c && c.wind_p50_kn !== null ? `${fmtNum(num(c.wind_p10_kn), 0)}/${fmtNum(num(c.wind_p50_kn), 0)}/${fmtNum(num(c.wind_p90_kn), 0)}` : 'n/a'}</td><td>{c?.wind_dir_mean_deg === null || c?.wind_dir_mean_deg === undefined ? 'n/a' : `${Math.round(num(c.wind_dir_mean_deg) ?? 0)}°`}</td><td>{fmtNum(num(c?.gust_p90_kn), 0)}<span className="font-sans text-[#555]"> {gustSourceChip(c?.gust_source)?.label ?? ''}</span></td>
+                    <td>{c?.wave_height_m === null || c?.wave_height_m === undefined ? 'n/a' : `${fmtNum(num(c.wave_height_m), 1)}/${fmtNum(num(c.wave_period_s), 0)}`}</td><td>{c?.swell_height_m === null || c?.swell_height_m === undefined ? 'n/a' : `${fmtNum(num(c.swell_height_m), 1)}/${Math.round(num(c.swell_dir_deg) ?? 0)}`}</td>
+                    <td>{c?.tide_height_m === null || c?.tide_height_m === undefined ? 'n/a' : `${fmtNum(num(c.tide_height_m), 2)} ${c.tide_datum ?? ''} ${c.tide_state ?? ''}`}</td><td>{c?.current_speed_kn === null || c?.current_speed_kn === undefined ? 'n/a' : `${fmtNum(num(c.current_speed_kn), 1)}→${Math.round(num(c.current_dir_deg) ?? 0)}°`}</td>
                     <td title={ukcBasisText(c?.ukc_basis, w.charted_depth_source)}>{fmtNum(num(c?.ukc_estimate_m), 1)}{w.charted_depth_source === 'gebco' ? ' *' : ''}</td>
-                    <td>{c?.comparison_wind_kn === null || c?.comparison_wind_kn === undefined ? '—' : `${fmtNum(num(c.comparison_wind_kn), 0)}/${Math.round(num(c.comparison_wind_dir_deg) ?? 0)}`}<span className="font-sans"> {c?.source_disagreement ? 'DIVERGE' : c ? 'agree' : ''}</span></td>
-                    <td className="font-sans">{c?.squall_risk && c.squall_risk !== 'none' ? c.squall_risk : '—'}</td><td className="font-sans font-semibold">{flagWord(c?.risk_flag)}</td><td className="font-sans">{c?.confidence_level ?? '—'}</td>
-                    <td>{fmtNum(l?.summary.maxWindP90 ?? null, 0)}</td><td>{fmtNum(l?.summary.maxHs ?? null, 1)}</td><td>{fmtNum(l?.summary.maxCurrentKn ?? null, 1)}</td><td className="font-sans font-semibold">{l ? flagWord(l.summary.worstRisk) : '—'}</td><td className="font-sans">{l && l.summary.worstSquall !== 'none' ? l.summary.worstSquall : '—'}</td><td>{fmtNum(num(c?.speed_loss_pct) ?? l?.summary.meanSpeedLossPct ?? null, 0)}</td>
+                    <td>{c?.comparison_wind_kn === null || c?.comparison_wind_kn === undefined ? 'n/a' : `${fmtNum(num(c.comparison_wind_kn), 0)}/${Math.round(num(c.comparison_wind_dir_deg) ?? 0)}`}<span className="font-sans"> {c?.source_disagreement ? 'DISAGREE' : c ? 'agree' : ''}</span></td>
+                    <td className="font-sans">{c?.squall_risk && c.squall_risk !== 'none' ? c.squall_risk : 'n/a'}</td><td className="font-sans font-semibold">{flagWord(c?.risk_flag)}</td><td className="font-sans">{c?.confidence_level ?? 'n/a'}</td>
+                    <td>{fmtNum(l?.summary.maxWindP90 ?? null, 0)}</td><td>{fmtNum(l?.summary.maxHs ?? null, 1)}</td><td>{fmtNum(l?.summary.maxCurrentKn ?? null, 1)}</td><td className="font-sans font-semibold">{l ? flagWord(l.summary.worstRisk) : 'n/a'}</td><td className="font-sans">{l && l.summary.worstSquall !== 'none' ? l.summary.worstSquall : 'n/a'}</td><td>{fmtNum(num(c?.speed_loss_pct) ?? l?.summary.meanSpeedLossPct ?? null, 0)}</td>
                   </tr>
                 );
               })}
@@ -146,17 +146,17 @@ export default function PassagePrint() {
       <section className="mt-5 print-leg">
         <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] mb-1.5">Sources</h2>
         <table className="num text-[11px]"><tbody>
-          <tr><td className="pr-4 text-[#555]">Primary ensemble</td><td>{sources?.atmospheric ?? conditions[0]?.atmos_source ?? '—'}</td><td className="pl-4">init {fmtUtc(inits.atmos)}</td></tr>
-          <tr><td className="pr-4 text-[#555]">Comparison</td><td>{sources?.comparison ?? conditions[0]?.comparison_source ?? '—'}</td><td className="pl-4">init {fmtUtc(inits.cmp)}</td></tr>
-          <tr><td className="pr-4 text-[#555]">Marine</td><td>{sources?.marine ?? conditions.find((c) => c.marine_source)?.marine_source ?? '—'}</td><td className="pl-4">init {fmtUtc(inits.marine)}</td></tr>
-          <tr><td className="pr-4 text-[#555]">Tidal</td><td>{sources?.tidal ?? conditions.find((c) => c.tidal_source)?.tidal_source ?? '—'}</td><td className="pl-4">stations {[...new Set(conditions.map((c) => c.tide_station_id).filter(Boolean))].join(', ') || '—'}</td></tr>
+          <tr><td className="pr-4 text-[#555]">Primary ensemble</td><td>{sources?.atmospheric ?? conditions[0]?.atmos_source ?? 'n/a'}</td><td className="pl-4">init {fmtUtc(inits.atmos)}</td></tr>
+          <tr><td className="pr-4 text-[#555]">Comparison</td><td>{sources?.comparison ?? conditions[0]?.comparison_source ?? 'n/a'}</td><td className="pl-4">init {fmtUtc(inits.cmp)}</td></tr>
+          <tr><td className="pr-4 text-[#555]">Marine</td><td>{sources?.marine ?? conditions.find((c) => c.marine_source)?.marine_source ?? 'n/a'}</td><td className="pl-4">init {fmtUtc(inits.marine)}</td></tr>
+          <tr><td className="pr-4 text-[#555]">Tidal</td><td>{sources?.tidal ?? conditions.find((c) => c.tidal_source)?.tidal_source ?? 'n/a'}</td><td className="pl-4">stations {[...new Set(conditions.map((c) => c.tide_station_id).filter(Boolean))].join(', ') || 'n/a'}</td></tr>
         </tbody></table>
         <p className="text-[10px] text-[#555] mt-1.5">{ATTRIBUTION}</p>
       </section>
 
       <footer className="mt-6 border-t-2 border-black pt-2 text-[10.5px]">
         <p className="font-semibold">{SOLAS}</p>
-        <p className="text-[#555] mt-1 num">Printed {fmtUtc(generated)} from run {run?.id ?? '—'} · passage {passage.id}</p>
+        <p className="text-[#555] mt-1 num">Printed {fmtUtc(generated)} from run {run?.id ?? 'n/a'} · passage {passage.id}</p>
       </footer>
     </div>
   );

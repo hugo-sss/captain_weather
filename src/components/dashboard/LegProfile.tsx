@@ -87,7 +87,7 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
   return (
     <div ref={ref} className={cn('relative w-full overflow-x-auto', className)} onMouseLeave={() => setHover(null)}>
       {n === 0 ? (
-        <div className="h-40 gap-hatch rounded-md border border-dashed border-border flex items-center justify-center text-center px-6 text-xs text-text-3">no along-leg points for this leg in the latest run (compute conditions to sample the leg every ~6 h)</div>
+        <div className="h-40 gap-hatch rounded-lg flex items-center justify-center text-center px-6 text-[13px] text-text-3">No points sampled along this leg in the latest check</div>
       ) : (
         <svg width={w} height={H} className="block select-none" role="img" aria-label={`Conditions along the leg ${fromName} to ${toName}`}>
           <defs>
@@ -164,18 +164,18 @@ const Row = ({ k, v }: { k: string; v: React.ReactNode }) => <div className="con
 /** Compact numbers for one point: wind, gust + source, sea, current, squall, risk and data gaps. */
 export function PointHoverCard({ p, utcOffsetMin, style, className }: { p: LegPoint; utcOffsetMin: number | null; style?: React.CSSProperties; className?: string }) {
   return (
-    <div className={cn('absolute z-20 w-[248px] rounded-md border border-border bg-bg-2/[0.97] backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)] p-2.5 text-[11px] pointer-events-none', className)} style={style} role="status">
+    <div className={cn('absolute z-20 w-[256px] rounded-lg border border-border-soft bg-bg-2/[0.97] backdrop-blur-sm shadow-pop p-3 text-[11px] pointer-events-none', className)} style={style} role="status">
       <div className="flex items-center gap-2 mb-1.5"><span className="num text-text-1 font-medium">{p.distanceNm.toFixed(1)} nm</span><span className="num text-text-2">{fmtUtc(p.eta)}</span><span className="num text-text-3">{fmtLocal(p.eta, utcOffsetMin)}</span><span className="ml-auto"><RiskPill flag={p.risk} size="sm" /></span></div>
       <div className="grid gap-x-3 gap-y-0.5" style={{ gridTemplateColumns: 'max-content 1fr' }}>
-        <Row k="wind p10/50/90" v={p.windP50 === null ? '—' : <>{fmtNum(p.windP10, 0)} / <b>{fmtNum(p.windP50, 0)}</b> / {fmtNum(p.windP90, 0)} kn{p.windDir !== null && <span className="text-text-3"> · from {Math.round(p.windDir)}°</span>}</>} />
-        <Row k="gust p90" v={p.gustP90 === null ? '—' : <>{fmtNum(p.gustP90, 0)} kn <GustSourceChip source={p.gustSource} /></>} />
-        <Row k="wave Hs" v={p.waveHs === null ? '—' : `${fmtNum(p.waveHs, 1)} m · ${fmtNum(p.wavePeriod, 0)} s${p.waveDir !== null ? ` · ${Math.round(p.waveDir)}°` : ''}`} />
-        <Row k="swell" v={p.swellHs === null ? '—' : `${fmtNum(p.swellHs, 1)} m · ${fmtNum(p.swellPeriod, 0)} s · ${Math.round(p.swellDir ?? 0)}°`} />
-        <Row k="current" v={p.currentKn === null ? '—' : `${fmtNum(p.currentKn, 1)} kn → ${Math.round(p.currentDir ?? 0)}°`} />
-        <Row k="speed loss" v={p.speedLossPct === null ? '—' : `${fmtNum(p.speedLossPct, 0)} %`} />
-        <Row k="comparison" v={p.cmpWind === null ? '—' : <>{fmtNum(p.cmpWind, 0)} kn / {Math.round(p.cmpDir ?? 0)}°{p.disagreement && <span className="text-flag-violet"> · diverge</span>}</>} />
+        <Row k="wind p10/50/90" v={p.windP50 === null ? 'no data' : <>{fmtNum(p.windP10, 0)} / <b>{fmtNum(p.windP50, 0)}</b> / {fmtNum(p.windP90, 0)} kn{p.windDir !== null && <span className="text-text-3"> · from {Math.round(p.windDir)}°</span>}</>} />
+        <Row k="gust p90" v={p.gustP90 === null ? 'no data' : <>{fmtNum(p.gustP90, 0)} kn <GustSourceChip source={p.gustSource} /></>} />
+        <Row k="wave" v={p.waveHs === null ? 'no data' : `${fmtNum(p.waveHs, 1)} m · ${fmtNum(p.wavePeriod, 0)} s${p.waveDir !== null ? ` · ${Math.round(p.waveDir)}°` : ''}`} />
+        <Row k="swell" v={p.swellHs === null ? 'no data' : `${fmtNum(p.swellHs, 1)} m · ${fmtNum(p.swellPeriod, 0)} s · ${Math.round(p.swellDir ?? 0)}°`} />
+        <Row k="current" v={p.currentKn === null ? 'no data' : `${fmtNum(p.currentKn, 1)} kn → ${Math.round(p.currentDir ?? 0)}°`} />
+        <Row k="speed loss" v={p.speedLossPct === null ? 'no data' : `${fmtNum(p.speedLossPct, 0)} %`} />
+        <Row k="comparison" v={p.cmpWind === null ? 'no data' : <>{fmtNum(p.cmpWind, 0)} kn / {Math.round(p.cmpDir ?? 0)}°{p.disagreement && <span className="text-flag-violet"> · models disagree</span>}</>} />
         <Row k="squall" v={p.squall === 'none' ? 'none' : <SquallBadge risk={p.squall} capeJkg={p.capeJkg} precipPct={p.precipPct} size="sm" />} />
-        <Row k="cape · precip" v={`${p.capeJkg === null ? '—' : Math.round(p.capeJkg) + ' J/kg'} · ${p.precipPct === null ? '—' : Math.round(p.precipPct) + ' %'}`} />
+        <Row k="cape · rain" v={`${p.capeJkg === null ? 'no data' : Math.round(p.capeJkg) + ' J/kg'} · ${p.precipPct === null ? 'no data' : Math.round(p.precipPct) + ' %'}`} />
       </div>
       {p.riskReasons.length > 0 && <ul className="mt-1.5 pt-1.5 border-t border-border space-y-0.5 num text-text-2">{p.riskReasons.map((r) => <li key={r}>{r}</li>)}</ul>}
       {p.dataGaps.length > 0 && <div className="mt-1.5 pt-1.5 border-t border-border text-text-3">no data: <span className="num text-text-2">{p.dataGaps.join(', ')}</span></div>}

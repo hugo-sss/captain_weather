@@ -1,4 +1,4 @@
-// Live preview of what the current passage's flags would be with the edited thresholds (PRD §9.5 screen 5).
+// What the edited limits would change on the current passage (PRD §9.5 screen 5).
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase.ts';
@@ -9,7 +9,7 @@ import { RiskPill } from '@/components/dashboard/RiskPill.tsx';
 import { ukcEstimate } from '../../../supabase/functions/_shared/ukc.ts';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 
-const Empty = ({ children }: { children: React.ReactNode }) => <div className="gap-hatch rounded-md border border-dashed border-border p-4 text-xs text-text-3 text-center">{children}</div>;
+const Empty = ({ children }: { children: React.ReactNode }) => <div className="gap-hatch rounded-lg p-5 text-[13px] text-text-3 text-center">{children}</div>;
 
 export function ThresholdPreview({ vesselId, thresholds, draftM }: { vesselId: string | null; thresholds: VesselThresholds; draftM: number | null }) {
   const [passage, setPassage] = useState<PassageRow | null>(null);
@@ -32,33 +32,33 @@ export function ThresholdPreview({ vesselId, thresholds, draftM }: { vesselId: s
     })();
     return () => { cancelled = true; };
   }, [vesselId]);
-  if (!vesselId) return <Empty>Save the vessel first to preview flags against a passage.</Empty>;
-  if (!loaded) return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8" />)}</div>;
-  if (!passage) return <Empty>No planned or active passage for this vessel yet.</Empty>;
-  if (rows.length === 0) return <Empty>Passage “{passage.name}” has no computed conditions yet.</Empty>;
-  const changed = rows.filter(({ wp, c }) => {
+  if (!vesselId) return <Empty>Save the vessel first to preview its flags against a passage.</Empty>;
+  if (!loaded) return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}</div>;
+  if (!passage) return <Empty>No planned or underway passage for this vessel yet.</Empty>;
+  if (rows.length === 0) return <Empty>{passage.name} has not been checked yet.</Empty>;
+  const flagFor = (wp: WaypointRow, c: WaypointConditionsRow) => {
     const ukc = ukcEstimate({ draftM, chartedDepthM: num(c.charted_depth_m), tideHeightM: num(c.tide_height_m), swellHeightM: num(c.swell_height_m), isAnchorage: wp.is_anchorage });
-    return riskFlag({ windP50Kn: num(c.wind_p50_kn), windP90Kn: num(c.wind_p90_kn), gustP90Kn: num(c.gust_p90_kn), waveHeightM: num(c.wave_height_m), currentSpeedKn: num(c.current_speed_kn), ukcEstimateM: ukc.ukcEstimateM, sourceDisagreement: c.source_disagreement, atmosphericGap: c.wind_p50_kn === null }, thresholds).flag !== c.risk_flag;
-  }).length;
+    return riskFlag({ windP50Kn: num(c.wind_p50_kn), windP90Kn: num(c.wind_p90_kn), gustP90Kn: num(c.gust_p90_kn), waveHeightM: num(c.wave_height_m), currentSpeedKn: num(c.current_speed_kn), ukcEstimateM: ukc.ukcEstimateM, sourceDisagreement: c.source_disagreement, atmosphericGap: c.wind_p50_kn === null }, thresholds);
+  };
+  const changed = rows.filter(({ wp, c }) => flagFor(wp, c).flag !== c.risk_flag).length;
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <div className="label">On “{passage.name}”</div>
-        <div className="text-[11px] text-text-3">{changed === 0 ? 'no flags change' : <span className="text-flag-violet">{changed} flag{changed === 1 ? '' : 's'} would change</span>}</div>
+        <div className="t-card">{passage.name}</div>
+        <div className="t-caption">{changed === 0 ? 'No flags change' : <span className="text-flag-violet">{changed} {changed === 1 ? 'flag changes' : 'flags change'}</span>}</div>
       </div>
       <table className="data-table">
-        <thead><tr><th className="r">#</th><th>Waypoint</th><th>Stored</th><th /><th>With edits</th></tr></thead>
+        <thead><tr><th className="r">No.</th><th>Waypoint</th><th>Now</th><th /><th>With these limits</th></tr></thead>
         <tbody>
           {rows.map(({ wp, c }) => {
-            const ukc = ukcEstimate({ draftM, chartedDepthM: num(c.charted_depth_m), tideHeightM: num(c.tide_height_m), swellHeightM: num(c.swell_height_m), isAnchorage: wp.is_anchorage });
-            const r = riskFlag({ windP50Kn: num(c.wind_p50_kn), windP90Kn: num(c.wind_p90_kn), gustP90Kn: num(c.gust_p90_kn), waveHeightM: num(c.wave_height_m), currentSpeedKn: num(c.current_speed_kn), ukcEstimateM: ukc.ukcEstimateM, sourceDisagreement: c.source_disagreement, atmosphericGap: c.wind_p50_kn === null }, thresholds);
+            const r = flagFor(wp, c);
             const diff = r.flag !== c.risk_flag;
             return (
               <tr key={wp.id} className={diff ? 'is-flagged' : undefined}>
                 <td className="num text-text-3 r">{wp.sequence}</td><td className="truncate max-w-[140px]">{wp.name}</td>
                 <td><RiskPill flag={c.risk_flag as RiskFlag} size="sm" /></td>
-                <td className="text-text-3"><ArrowRight className="h-3 w-3" /></td>
-                <td><span className="inline-flex items-center gap-2"><RiskPill flag={r.flag} reasons={r.reasons} size="sm" />{diff && <span className="text-[10px] uppercase tracking-[0.05em] text-flag-violet">changes</span>}</span></td>
+                <td className="text-text-3"><ArrowRight className="h-3.5 w-3.5" /></td>
+                <td><span className="inline-flex items-center gap-2"><RiskPill flag={r.flag} reasons={r.reasons} size="sm" />{diff && <span className="text-[11px] text-flag-violet">Changes</span>}</span></td>
               </tr>
             );
           })}

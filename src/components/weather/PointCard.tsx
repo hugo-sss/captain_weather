@@ -1,6 +1,6 @@
-// The Windy popup. Raw model values for the scrubber's time step, labelled with model + run + lead
-// time and lat/lon. Numbers only. Tide comes only from a station via the point-tide function on an
-// explicit click ("Tide here"): Open-Meteo sea level is never presented as tide (product rule).
+// The point card. Phrases first, numbers second. Model values for the time bar's step, labelled with
+// model, run and lead time. Tide comes only from a station via the point-tide function on an explicit
+// click ("Tide here"): Open-Meteo sea level is never presented as tide (product rule).
 import { CircleDashed, Pin, Waves, X } from 'lucide-react';
 import { usePointTide } from '@/hooks/usePointTide.ts';
 import { useNow } from '@/hooks/useNow.ts';
@@ -9,6 +9,7 @@ import type { BrowseVar, PointForecast, RunInfo } from '@/lib/weather-browse/typ
 import { MODEL_LABEL } from '@/lib/weather-browse/types.ts';
 import { windColor } from '@/lib/risk-colors.ts';
 import { compassPoint } from '@/lib/units.ts';
+import { seaPhrase, windPhrase } from '@/lib/plain.ts';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { cn } from '@/lib/utils.ts';
 
@@ -26,12 +27,12 @@ const fmt = (v: number | null | undefined, dp: number) => (v === null || v === u
 function Field({ label, value, unit, reason, arrow, colour, compass = true }: { label: string; value: string | null; unit?: string; reason?: string; arrow?: number | null; colour?: string; compass?: boolean }) {
   const empty = value === null;
   return (
-    <div className={cn('rounded-md border px-2 py-1.5 min-h-[46px] flex flex-col justify-center min-w-0', empty ? 'gap-hatch border-dashed border-border/80' : 'border-border bg-bg-2')} title={empty ? reason : undefined}>
+    <div className={cn('tile px-2.5 py-2 min-h-[50px] flex flex-col justify-center min-w-0', empty && 'gap-hatch')} title={empty ? reason : undefined}>
       <div className="label truncate">{label}</div>
       {empty ? (
-        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-text-3"><CircleDashed className="h-3 w-3 shrink-0" /> no data</div>
+        <div className="mt-0.5 flex items-center gap-1 text-[12px] text-text-3"><CircleDashed className="h-3 w-3 shrink-0" /> No data</div>
       ) : (
-        <div className="num text-[13px] font-medium leading-tight mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
+        <div className="num text-[14px] font-medium leading-tight mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
           {colour && <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: colour }} aria-hidden />}
           <span>{value}{unit ? <span className="font-sans text-[10px] text-text-3 ml-1 font-normal">{unit}</span> : null}</span>
           {arrow !== null && arrow !== undefined && Number.isFinite(arrow) && (
@@ -63,7 +64,7 @@ function Sparkline({ point, timeIso }: { point: PointForecast; timeIso: string |
   const cur = start - from;
   return (
     <div>
-      <div className="flex items-baseline justify-between"><span className="label">Wind, next 48 h</span><span className="num text-[10px] text-text-3">0–{Math.round(max)} kn</span></div>
+      <div className="flex items-baseline justify-between"><span className="label">Wind, next 48 h</span><span className="num text-[10px] text-text-3">0 to {Math.round(max)} kn</span></div>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-0.5 w-full h-9" preserveAspectRatio="none" aria-label="48 hour wind sparkline">
         {[10, 20, 30].filter((k) => k < max).map((k) => <line key={k} x1={0} x2={W} y1={py(k)} y2={py(k)} stroke="#23304A" strokeWidth={0.75} />)}
         <path d={path(gseg)} fill="none" stroke="#66748F" strokeWidth={1} strokeDasharray="2 2" />
@@ -75,9 +76,9 @@ function Sparkline({ point, timeIso }: { point: PointForecast; timeIso: string |
 }
 
 export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHours, point, pointLoading, gridValues, onClose, onPin }: Props) {
-  // Prefer the hourly point series at the scrubber's step; fall back to the interpolated grid.
+  // Prefer the hourly point series at the time bar's step; fall back to the interpolated grid.
   let v: CardValues | null = gridValues;
-  let sourceLabel = 'grid · 3-hourly';
+  let sourceLabel = 'grid, 3-hourly';
   if (point && timeIso) {
     const i = point.hourly.times.indexOf(timeIso);
     if (i >= 0) {
@@ -88,34 +89,37 @@ export function PointCard({ lat, lon, pinned, x, y, mobile, timeIso, run, leadHo
   }
   const marineReason = point?.marineReason ?? 'no marine value at this grid cell';
   const wind = v?.wind_speed_10m ?? null;
+  const windLine = windPhrase(wind, null, v?.wind_direction_10m ?? null, v?.wind_gusts_10m ?? null);
+  const seaLine = seaPhrase(v?.wave_height ?? null, v?.wave_period ?? null, v?.swell_wave_height ?? null, v?.swell_wave_direction ?? null);
   const style: React.CSSProperties = mobile ? {} : { left: x + 18, top: y + 18 };
-  const flipX = !mobile && typeof window !== 'undefined' && x + 18 + 320 > window.innerWidth;
+  const flipX = !mobile && typeof window !== 'undefined' && x + 18 + 330 > window.innerWidth;
   const flipY = !mobile && typeof window !== 'undefined' && y + 18 + 560 > window.innerHeight;
   if (flipX) { style.left = undefined; style.right = window.innerWidth - x + 18; }
   if (flipY) { style.top = undefined; style.bottom = window.innerHeight - y + 18; }
   return (
     <div role="dialog" aria-label={`Weather at ${lat.toFixed(2)}, ${lon.toFixed(2)}`}
-      className={cn('z-[1150] rounded-lg border border-border bg-bg-1/[0.97] backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.55)] text-sm', mobile ? 'fixed left-2 right-2 bottom-[92px] max-h-[62vh] overflow-y-auto' : 'fixed w-[316px] max-h-[calc(100vh-24px)] overflow-y-auto pointer-events-auto')}
+      className={cn('z-[1150] rounded-xl border border-border-soft bg-bg-1/[0.97] backdrop-blur-md shadow-pop text-[14px]', mobile ? 'absolute left-2 right-2 bottom-2 max-h-[72%] overflow-y-auto' : 'fixed w-[328px] max-h-[calc(100vh-24px)] overflow-y-auto pointer-events-auto')}
       style={style} onMouseDown={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-border">
+      <div className="flex items-start gap-2 px-4 pt-3 pb-2.5 border-b border-border-soft">
         <div className="min-w-0 flex-1">
-          <div className="num text-[12px] text-text-1">{Math.abs(lat).toFixed(3)}°{lat >= 0 ? 'N' : 'S'} {Math.abs(lon).toFixed(3)}°{lon >= 0 ? 'E' : 'W'}</div>
-          <div className="text-[10.5px] text-text-3 truncate">{run ? MODEL_LABEL[run.model] : 'model'} · <span className="num">{run?.runLabel ?? '≈ run —'}</span>{leadHours !== null && <> · <span className="num">{leadHours >= 0 ? '+' : '−'}{Math.abs(leadHours)} h</span></>} · {sourceLabel}</div>
+          {windLine ? <div className="text-[15px] font-semibold leading-snug">{windLine}</div> : <div className="text-[15px] font-semibold text-text-3">No wind value here</div>}
+          {seaLine && <div className="text-[13px] text-text-2 leading-snug mt-0.5">{seaLine}</div>}
+          <div className="text-[11px] text-text-3 mt-1 truncate"><span className="num">{Math.abs(lat).toFixed(3)}°{lat >= 0 ? 'N' : 'S'} {Math.abs(lon).toFixed(3)}°{lon >= 0 ? 'E' : 'W'}</span> · {run ? MODEL_LABEL[run.model] : 'model'}, <span className="num">{run?.runLabel.replace('≈ ', 'about ') ?? 'run unknown'}</span>{leadHours !== null && <>, <span className="num">{leadHours >= 0 ? '+' : '-'}{Math.abs(leadHours)} h</span></>}, {sourceLabel}</div>
         </div>
-        {!pinned && !mobile && <button type="button" onClick={onPin} className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-text-3 hover:text-text-1 hover:bg-bg-2" aria-label="Pin this point"><Pin className="h-3.5 w-3.5" /></button>}
-        {(pinned || mobile) && <button type="button" onClick={onClose} className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-text-3 hover:text-text-1 hover:bg-bg-2" aria-label="Close"><X className="h-3.5 w-3.5" /></button>}
+        {!pinned && !mobile && <button type="button" onClick={onPin} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-3 hover:text-text-1 hover:bg-bg-2" aria-label="Pin this point"><Pin className="h-3.5 w-3.5" /></button>}
+        {(pinned || mobile) && <button type="button" onClick={onClose} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-3 hover:text-text-1 hover:bg-bg-2" aria-label="Close"><X className="h-4 w-4" /></button>}
       </div>
-      <div className="p-2.5 space-y-2">
+      <div className="p-3 space-y-3">
         {!v && pointLoading ? (
-          <div className="grid grid-cols-2 gap-1.5">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[46px]" />)}</div>
+          <div className="grid grid-cols-2 gap-1.5">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[50px]" />)}</div>
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             <Field label="Wind" value={fmt(wind, 0)} unit="kn" arrow={v?.wind_direction_10m ?? null} colour={wind === null ? undefined : windColor(wind)} reason="no atmospheric value here" />
             <Field label="Gust" value={fmt(v?.wind_gusts_10m, 0)} unit="kn" reason="no gust value here" />
-            <Field label="Wave · period" value={v?.wave_height === null || v?.wave_height === undefined ? null : `${fmt(v.wave_height, 1)} m · ${fmt(v.wave_period, 0) ?? '—'} s`} arrow={v?.wave_direction ?? null} compass={false} reason={marineReason} />
-            <Field label="Swell · period" value={v?.swell_wave_height === null || v?.swell_wave_height === undefined ? null : `${fmt(v.swell_wave_height, 1)} m · ${fmt(v.swell_wave_period, 0) ?? '—'} s`} arrow={v?.swell_wave_direction ?? null} compass={false} reason={marineReason} />
+            <Field label="Wave, period" value={v?.wave_height === null || v?.wave_height === undefined ? null : `${fmt(v.wave_height, 1)} m, ${fmt(v.wave_period, 0) ?? 'n/a'} s`} arrow={v?.wave_direction ?? null} compass={false} reason={marineReason} />
+            <Field label="Swell, period" value={v?.swell_wave_height === null || v?.swell_wave_height === undefined ? null : `${fmt(v.swell_wave_height, 1)} m, ${fmt(v.swell_wave_period, 0) ?? 'n/a'} s`} arrow={v?.swell_wave_direction ?? null} compass={false} reason={marineReason} />
             <Field label="Pressure" value={fmt(v?.pressure_msl, 1)} unit="hPa" reason="no pressure value here" />
-            <Field label="Temp · precip" value={v?.temperature_2m === null || v?.temperature_2m === undefined ? null : `${fmt(v.temperature_2m, 1)} °C · ${fmt(v.precipitation, 1) ?? '—'} mm`} reason="no value here" />
+            <Field label="Air, rain" value={v?.temperature_2m === null || v?.temperature_2m === undefined ? null : `${fmt(v.temperature_2m, 1)} °C, ${fmt(v.precipitation, 1) ?? 'n/a'} mm`} reason="no value here" />
           </div>
         )}
         {point ? <Sparkline point={point} timeIso={timeIso} /> : pointLoading ? <Skeleton className="h-9" /> : null}
@@ -131,27 +135,27 @@ function TideHere({ lat, lon, loadingPoint }: { lat: number; lon: number; loadin
   const nowMs = useNow(60_000);
   const d = tide.data;
   return (
-    <div className="border-t border-border pt-1.5 space-y-1.5">
+    <div className="border-t border-border-soft pt-2.5 space-y-1.5">
       {!d ? (
         <div className="flex items-center justify-between gap-2">
-          <button type="button" onClick={() => void tide.load()} disabled={tide.loading} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2 text-[11px] font-medium text-text-1 hover:border-text-3/60 disabled:opacity-60" aria-label="Load station tide for this point">
+          <button type="button" onClick={() => void tide.load()} disabled={tide.loading} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-bg-2 px-3 text-[12px] font-medium text-text-1 hover:bg-[#1F2C45] disabled:opacity-60" aria-label="Load station tide for this point">
             <Waves className={cn('h-3.5 w-3.5 text-accent', tide.loading && 'animate-pulse')} />{tide.loading ? 'Finding the nearest station…' : 'Tide here'}
           </button>
-          <span className="text-[10px] text-text-3 text-right">nearest station · uses a tide credit</span>
+          <span className="text-[11px] text-text-3 text-right">Nearest station, uses a tide credit</span>
           {loadingPoint && <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-pulse" aria-label="loading" />}
         </div>
       ) : (
         <div>
-          <div className="flex items-baseline gap-2 text-[10.5px]">
+          <div className="flex items-baseline gap-2 text-[11px]">
             <span className="label">Tide</span>
             <span className="text-text-1 truncate">{d.station.name}</span>
-            <span className="num text-text-3 shrink-0">{d.station.distance_km.toFixed(1)} km away · datum {d.datum}{d.cached ? ' · cached' : ''}</span>
+            <span className="num text-text-3 shrink-0">{d.station.distance_km.toFixed(1)} km away, datum {d.datum}{d.cached ? ', cached' : ''}</span>
           </div>
           <TideChart bare compact series={d.series.map((s) => ({ t: Date.parse(s.time), height: s.height_m, state: s.state }))} extremes={d.extremes.map((e) => ({ t: Date.parse(e.time), height: e.height_m, type: e.type }))} datum={d.datum} nowMs={nowMs} className="mt-1" />
-          <div className="text-[10px] text-text-3 mt-0.5">station {d.station.id} · TidesAtlas · not a model sea level</div>
+          <div className="text-[11px] text-text-3 mt-0.5">Station {d.station.id}, TidesAtlas. Not a model sea level.</div>
         </div>
       )}
-      {tide.error && <p className="text-[11px] text-risk-red">{tide.error}</p>}
+      {tide.error && <p className="text-[12px] text-risk-red">{tide.error}</p>}
     </div>
   );
 }

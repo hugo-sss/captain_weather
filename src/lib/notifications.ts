@@ -37,10 +37,8 @@ export function relativeTime(iso: string, now = Date.now()): string {
   return `${Math.round(m / 1440)} d ago`;
 }
 
-/** Where a click lands: material changes and briefings open the passage table; re-checks open the monitor. */
+/** Where a click lands: the one passage page (its Alerts group sits at the top). */
 export function notificationHref(n: Pick<NotificationRow, 'passage_id' | 'kind'>): string | null {
   if (!n.passage_id) return null;
-  const kind = asKind(n.kind);
-  if (kind === 'recheck' || kind === 'recheck_failed') return `/passages/${n.passage_id}/active`;
   return `/passages/${n.passage_id}`;
 }

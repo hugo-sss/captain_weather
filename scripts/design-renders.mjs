@@ -2,6 +2,8 @@
 //   PREVIEW_MOCK=1 pnpm exec vite --port 5199      (in another shell)
 //   node scripts/design-renders.mjs --prefix after --base http://localhost:5199 --out /tmp/design-renders
 //   node scripts/design-renders.mjs --set phase5 --prefix phase5-after      (Phase 5 shots: leg profile, tide, alerts, depth, print, offline)
+//   node scripts/design-renders.mjs --set v2 --prefix v2                    (design v2: every screen in the brief)
+//   node scripts/design-renders.mjs --set v2before --prefix v2-before --base http://localhost:5198   (claude/deploy checkout)
 // Uses the globally installed Playwright (falls back to a local one) and the Chromium in PLAYWRIGHT_BROWSERS_PATH.
 import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -79,7 +81,39 @@ const PHASE5 = [
   { name: 'print', path: '/passages/p1/print?noprint=1', views: ['desktop'], settle: 2200 },
   { name: 'offline', path: '/passages/p1', views: ['desktop', 'mobile'], act: async (page) => { await page.waitForTimeout(800); await page.goto(`${base}/passages/p1?offline=1`, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => undefined); await page.waitForTimeout(1500); } },
 ];
-const ACTIVE = set === 'phase5' ? PHASE5 : SHOTS;
+
+/** Design v2 shots. `prefs` seeds display preferences (detail level, local time zone) before the page loads. */
+const PHUKET = 420;
+const scrollTo = async (page, selector) => { await page.locator(selector).first().scrollIntoViewIfNeeded(); await page.evaluate((sel) => { const el = document.querySelector(sel); if (el) window.scrollBy(0, el.getBoundingClientRect().top - 140); }, selector); await page.waitForTimeout(500); };
+const selectLeg = async (page, view, name) => { await page.locator(`article[role="button"]:has-text("${name}") >> visible=true`).first().click(); await page.waitForTimeout(700); void view; };
+const V2 = [
+  { name: 'landing', path: '/', views: ['desktop', 'mobile'], settle: 1800, prefs: { local_utc_offset_min: PHUKET } },
+  { name: 'pointcard', path: '/', views: ['desktop'], settle: 1800, prefs: { local_utc_offset_min: PHUKET }, act: async (page, view) => { const [x, y] = await mapPoint(page, 0.42, 0.42); await tapOrClick(page, view, x, y); await page.waitForTimeout(900); } },
+  { name: 'passages', path: '/passages', views: ['desktop', 'mobile'], prefs: { local_utc_offset_min: PHUKET } },
+  { name: 'passage-simple', path: '/passages/p1', views: ['desktop', 'mobile'], prefs: { detail_level: 'simple', local_utc_offset_min: PHUKET }, settle: 1600 },
+  { name: 'passage-detailed', path: '/passages/p1', views: ['desktop'], prefs: { detail_level: 'detailed', local_utc_offset_min: PHUKET }, settle: 1600 },
+  { name: 'passage-norun', path: '/passages/p4', views: ['desktop'], prefs: { detail_level: 'simple', local_utc_offset_min: 120 }, settle: 1600 },
+  { name: 'passage-underway', path: '/passages/p1', views: ['desktop'], viewport: true, prefs: { detail_level: 'simple', local_utc_offset_min: PHUKET }, settle: 1600, act: async (page) => { await scrollTo(page, '#route'); } },
+  { name: 'leg-selected', path: '/passages/p1', views: ['desktop'], viewport: true, prefs: { detail_level: 'simple', local_utc_offset_min: PHUKET }, settle: 1600, act: async (page, view) => { await selectLeg(page, view, 'Ko Phi Phi Don'); await scrollTo(page, '#conditions'); } },
+  { name: 'tide-swell', path: '/passages/p1', views: ['desktop'], viewport: true, prefs: { detail_level: 'simple', local_utc_offset_min: PHUKET }, settle: 1600, act: async (page) => { await page.getByRole('switch', { name: 'Show swell and under-keel clearance' }).click(); await page.waitForTimeout(600); await scrollTo(page, '#tide'); } },
+  { name: 'menu', path: '/passages/p1', views: ['desktop'], viewport: true, prefs: { detail_level: 'simple', local_utc_offset_min: PHUKET }, settle: 1600, act: async (page) => { await page.getByRole('button', { name: 'More actions' }).click(); await page.waitForTimeout(400); } },
+  { name: 'table', path: '/passages/p1/table', views: ['desktop'], prefs: { local_utc_offset_min: PHUKET } },
+  { name: 'builder', path: '/passages/p1/edit', views: ['desktop'], prefs: { local_utc_offset_min: PHUKET } },
+  { name: 'builder-sheet', path: '/passages/p1/edit', views: ['desktop'], prefs: { local_utc_offset_min: PHUKET }, act: async (page) => { await page.getByText('Ko Racha Yai', { exact: false }).first().click(); await page.waitForTimeout(400); } },
+  { name: 'vessel', path: '/vessels/v1', views: ['desktop'] },
+  { name: 'alerts', path: '/alerts', views: ['desktop', 'mobile'], prefs: { local_utc_offset_min: PHUKET } },
+  { name: 'settings', path: '/settings', views: ['desktop'] },
+  { name: 'comparison', path: '/passages/p1/comparison', views: ['desktop'] },
+  { name: 'anchorage', path: '/passages/p1/anchorage/wp5', views: ['desktop'], prefs: { local_utc_offset_min: PHUKET } },
+];
+/** The "before" pairs from the claude/deploy checkout: landing, passages list, passage page. */
+const V2BEFORE = [
+  { name: 'landing', path: '/', views: ['desktop', 'mobile'], settle: 1800 },
+  { name: 'passages', path: '/passages', views: ['desktop', 'mobile'] },
+  { name: 'passage', path: '/passages/p1', views: ['desktop', 'mobile'] },
+];
+const SETS = { default: SHOTS, phase5: PHASE5, v2: V2, v2before: V2BEFORE };
+const ACTIVE = SETS[set] ?? SHOTS;
 
 const { chromium } = await loadPlaywright();
 const browser = await chromium.launch({ headless: true });
@@ -88,6 +122,10 @@ try {
     if (only && !only.has(shot.name)) continue;
     for (const view of shot.views) {
       const ctx = await browser.newContext(view === 'mobile' ? MOBILE : DESKTOP);
+      if (shot.prefs) {
+        const prefs = JSON.stringify({ narrative_emphasis: 0, use_current: false, show_openseamap: true, show_noaa_enc: false, local_utc_offset_min: null, detail_level: 'simple', ...shot.prefs });
+        await ctx.addInitScript((p) => { try { localStorage.setItem('cpt.displayPrefs.v1', p); } catch { /* ignore */ } }, prefs);
+      }
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.error(`[${shot.name}/${view}] page error:`, e.message));
       await page.goto(`${base}${shot.path}`, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => undefined);
