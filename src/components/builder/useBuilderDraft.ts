@@ -19,7 +19,7 @@ export function initialMeta(p: PassageRow | null, vessels: VesselRow[]): Meta {
 export function initialItems(rows: WaypointRow[]): ListItem[] {
   return rows.map((w) => ({
     key: newKey(), id: w.id, sequence: w.sequence, name: w.name ?? '', lat: Number(w.lat), lon: Number(w.lon), planned_speed_kn: w.planned_speed_kn, is_anchorage: w.is_anchorage,
-    planned_departure_from_here: w.planned_departure_from_here, anchorage_exposure_tag: w.anchorage_exposure_tag as DraftWaypoint['anchorage_exposure_tag'], is_complex_coastal: w.is_complex_coastal, charted_depth_m: w.charted_depth_m, charted_depth_source: (w.charted_depth_source as DraftWaypoint['charted_depth_source']) ?? null, source: w.source as DraftWaypoint['source'],
+    planned_departure_from_here: w.planned_departure_from_here, anchorage_exposure_tag: w.anchorage_exposure_tag as DraftWaypoint['anchorage_exposure_tag'], is_complex_coastal: w.is_complex_coastal, charted_depth_m: w.charted_depth_m, charted_depth_source: (w.charted_depth_source as DraftWaypoint['charted_depth_source']) ?? null, stream_rate_kn: w.stream_rate_kn === null ? null : Number(w.stream_rate_kn), stream_set_deg: w.stream_set_deg === null ? null : Number(w.stream_set_deg), source: w.source as DraftWaypoint['source'],
   }));
 }
 
@@ -39,9 +39,9 @@ export function useBuilderDraft({ id, passage, waypoints: rows, vessels }: { id?
   // Live engine preview so ETAs show while editing.
   const preview = useMemo(() => {
     if (!vessel || items.length === 0) return null;
-    return runEngine({ departure: meta.planned_departure, cruiseSpeedKn: Number(vessel.cruise_speed_kn), useCurrent: false, waypoints: items.map((w) => ({ id: w.key, sequence: w.sequence, lat: w.lat, lon: w.lon, plannedSpeedKn: w.planned_speed_kn, isAnchorage: w.is_anchorage, departureFromHere: w.planned_departure_from_here, arrived: false })) });
+    return runEngine({ departure: meta.planned_departure, cruiseSpeedKn: Number(vessel.cruise_speed_kn), useCurrent: false, waypoints: items.map((w) => ({ id: w.key, sequence: w.sequence, lat: w.lat, lon: w.lon, plannedSpeedKn: w.planned_speed_kn, isAnchorage: w.is_anchorage, departureFromHere: w.planned_departure_from_here, arrived: false, streamRateKn: w.stream_rate_kn ?? null, streamSetDeg: w.stream_set_deg ?? null })) });
   }, [items, vessel, meta.planned_departure]);
-  const withEta: ListItem[] = useMemo(() => items.map((w) => { const l = preview?.legs.find((x) => x.waypointId === w.key); return { ...w, eta: l?.eta, distanceNm: l?.distanceNm }; }), [items, preview]);
+  const withEta: ListItem[] = useMemo(() => items.map((w) => { const l = preview?.legs.find((x) => x.waypointId === w.key); return { ...w, eta: l?.eta, distanceNm: l?.distanceNm, streamDeltaMin: l?.currentDeltaMin ?? null }; }), [items, preview]);
 
   const addPin = useCallback((lat: number, lon: number) => setItems((it) => [...it, { key: newKey(), sequence: it.length + 1, name: `WP${it.length + 1}`, lat, lon, planned_speed_kn: null, is_anchorage: false, planned_departure_from_here: null, anchorage_exposure_tag: null, is_complex_coastal: false, charted_depth_m: null, source: 'map' }]), []);
   const movePin = useCallback((key: string, lat: number, lon: number) => setItems((it) => it.map((w) => (w.key === key ? { ...w, lat, lon } : w))), []);
@@ -86,7 +86,7 @@ export function useBuilderDraft({ id, passage, waypoints: rows, vessels }: { id?
       const pid = res.data.id;
       if (removed.length) { const d = await supabase.from('waypoints').delete().in('id', removed); if (d.error) throw d.error; }
       // One request = one transaction, so renumbered sequences pass the deferred unique constraint together.
-      const rows = items.map((w) => ({ ...(w.id ? { id: w.id } : {}), passage_id: pid, sequence: w.sequence, name: w.name || null, lat: w.lat, lon: w.lon, planned_speed_kn: w.planned_speed_kn, is_anchorage: w.is_anchorage, planned_departure_from_here: w.is_anchorage ? w.planned_departure_from_here : null, anchorage_exposure_tag: w.is_anchorage ? w.anchorage_exposure_tag : null, is_complex_coastal: w.is_complex_coastal, charted_depth_m: w.charted_depth_m, charted_depth_source: w.charted_depth_m === null ? null : w.charted_depth_source ?? 'user', source: w.source }));
+      const rows = items.map((w) => ({ ...(w.id ? { id: w.id } : {}), passage_id: pid, sequence: w.sequence, name: w.name || null, lat: w.lat, lon: w.lon, planned_speed_kn: w.planned_speed_kn, is_anchorage: w.is_anchorage, planned_departure_from_here: w.is_anchorage ? w.planned_departure_from_here : null, anchorage_exposure_tag: w.is_anchorage ? w.anchorage_exposure_tag : null, is_complex_coastal: w.is_complex_coastal, charted_depth_m: w.charted_depth_m, charted_depth_source: w.charted_depth_m === null ? null : w.charted_depth_source ?? 'user', stream_rate_kn: w.stream_rate_kn ?? null, stream_set_deg: w.stream_rate_kn === null || w.stream_rate_kn === undefined ? null : w.stream_set_deg ?? null, source: w.source }));
       const up = await supabase.from('waypoints').upsert(rows, { onConflict: 'id' });
       if (up.error) throw up.error;
       try { await invokeFunction('plan-targets', { passage_id: pid }); } catch (e) { setNotice(`Saved. Target planning failed: ${(e as Error).message}`); }

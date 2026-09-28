@@ -16,6 +16,8 @@ export type Settings = {
   speed_loss: SpeedLossSettings;
   squall: SquallSettings;
   alerts: { email: string | null };
+  /** Migration 0010: correct ETAs with the model surface current where no manual stream is typed. */
+  eta: { use_model_current: boolean };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speed_loss: DEFAULT_SPEED_LOSS,
   squall: DEFAULT_SQUALL,
   alerts: { email: null },
+  eta: { use_model_current: true },
 };
 
 export async function loadSettings(admin: Admin): Promise<Settings> {

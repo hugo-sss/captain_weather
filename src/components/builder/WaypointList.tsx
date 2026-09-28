@@ -6,7 +6,7 @@ import type { DraftWaypoint } from '@/types/domain.ts';
 import { localDayTime } from '@/lib/plain.ts';
 import { cn } from '@/lib/utils.ts';
 
-export type ListItem = DraftWaypoint & { key: string; eta?: string; distanceNm?: number; stay_hours?: number };
+export type ListItem = DraftWaypoint & { key: string; eta?: string; distanceNm?: number; stay_hours?: number; streamDeltaMin?: number | null };
 
 function Row({ item, selected, onSelect, onDelete, utcOffsetMin }: { item: ListItem; selected: boolean; onSelect: () => void; onDelete: () => void; utcOffsetMin: number | null }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.key });

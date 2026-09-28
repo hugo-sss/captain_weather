@@ -184,20 +184,38 @@ export function distancePhrase(nm: number | null | undefined): string | null {
   return nm >= 10 ? `${Math.round(nm)} nm` : `${r1(nm)} nm`;
 }
 
-/** "Arrive Fri 5 Sep, 09:40 local (16 min later than planned, sea state)". */
-export function etaPhrase(eta: string | null | undefined, etaPlanned: string | null | undefined, offsetMin: number | null | undefined): string | null {
+/** What moved the ETA off the still-water plan: "sea state", "current", "sea state and current" (or "stream" when typed from the atlas). */
+export function etaCauses(speedLossPct: unknown, currentSource: unknown): string {
+  const causes: string[] = [];
+  if (isNum(speedLossPct) && speedLossPct > 0) causes.push('sea state');
+  if (currentSource === 'manual') causes.push('stream');
+  else if (currentSource === 'model') causes.push('current');
+  return causes.length ? causes.join(' and ') : 'sea state';
+}
+
+/** "Arrive Fri 5 Sep, 09:40 local (16 min later than planned, sea state and current)". */
+export function etaPhrase(eta: string | null | undefined, etaPlanned: string | null | undefined, offsetMin: number | null | undefined, speedLossPct?: unknown, currentSource?: unknown): string | null {
   const when = localDateTime(eta, offsetMin);
   if (!when) return null;
   const delta = etaDeltaMinutes(etaPlanned, eta);
   if (delta === null) return `Arrive ${when} local`;
-  return `Arrive ${when} local (${durationPhrase(Math.abs(delta) / 60)} ${delta > 0 ? 'later' : 'earlier'} than planned, sea state)`;
+  return `Arrive ${when} local (${durationPhrase(Math.abs(delta) / 60)} ${delta > 0 ? 'later' : 'earlier'} than planned, ${etaCauses(speedLossPct, currentSource)})`;
 }
 
-/** "16 min later than planned, sea state" on its own, for a stat sub line. */
-export function etaDeltaPhrase(eta: string | null | undefined, etaPlanned: string | null | undefined): string | null {
+/** "16 min later than planned, sea state and current" on its own, for a stat sub line. */
+export function etaDeltaPhrase(eta: string | null | undefined, etaPlanned: string | null | undefined, speedLossPct?: unknown, currentSource?: unknown): string | null {
   const delta = etaDeltaMinutes(etaPlanned, eta);
   if (delta === null) return null;
-  return `${durationPhrase(Math.abs(delta) / 60)} ${delta > 0 ? 'later' : 'earlier'} than planned, sea state`;
+  return `${durationPhrase(Math.abs(delta) / 60)} ${delta > 0 ? 'later' : 'earlier'} than planned, ${etaCauses(speedLossPct, currentSource)}`;
+}
+
+/** "Stream 1.8 kn setting north-east, from the atlas: 40 min earlier" for a leg card. */
+export function streamPhrase(kn: unknown, towardDeg: unknown, source: unknown, deltaMin: unknown): string | null {
+  if (!isNum(kn) || !isNum(towardDeg) || (source !== 'manual' && source !== 'model')) return null;
+  const head = source === 'manual' ? `Stream ${r1(kn)} kn setting ${compassWord(towardDeg)}, from the atlas` : `Model current ${r1(kn)} kn setting ${compassWord(towardDeg)}`;
+  if (!isNum(deltaMin) || Math.round(deltaMin) === 0) return `${head}: no change to the ETA`;
+  const d = Math.round(deltaMin);
+  return `${head}: ${durationPhrase(Math.abs(d) / 60)} ${d > 0 ? 'later' : 'earlier'}`;
 }
 
 // ---- Sources ---------------------------------------------------------------------------------

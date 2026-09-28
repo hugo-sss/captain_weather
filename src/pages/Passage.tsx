@@ -206,7 +206,7 @@ export default function Passage() {
           primary={primary}
           stats={{
             departure: { value: localDateTime(departs, off), sub: passage.actual_departure ? 'Local, actual' : 'Local, planned' },
-            arrival: { value: localDateTime(arrival, off), sub: etaDeltaPhrase(lastC?.eta, lastC?.eta_planned) ?? (arrival ? `${durationPhrase((Date.parse(arrival) - Date.parse(departs)) / 3_600_000)} under way` : null) },
+            arrival: { value: localDateTime(arrival, off), sub: etaDeltaPhrase(lastC?.eta, lastC?.eta_planned, conditions.some((c) => (num(c.speed_loss_pct) ?? 0) > 0) ? 1 : 0, conditions.some((c) => c.current_source === 'manual') ? 'manual' : conditions.some((c) => c.current_source === 'model') ? 'model' : null) ?? (arrival ? `${durationPhrase((Date.parse(arrival) - Date.parse(departs)) / 3_600_000)} under way` : null) },
             worst: worstS && worst && worst !== 'green' ? { name: worstS.name, risk: worstS.risk, sub: [dayPartPhrase(worstS.eta, off, nowMs)?.replace(/^on /, ''), worstS.number].filter(Boolean).join(', ') || null } : worst === 'green' ? { name: 'None', risk: 'green', sub: 'Every leg is green' } : null,
             checked: { value: run ? agePhrase(run.completed_at ?? run.created_at, nowMs) : null, sub: checkedSub },
           }}

@@ -38,6 +38,9 @@ export type DraftWaypoint = {
   is_complex_coastal: boolean;
   charted_depth_m: number | null;
   charted_depth_source?: DepthSource | null;
+  /** Manual tidal stream on the leg into this waypoint, from the atlas (migration 0010). */
+  stream_rate_kn?: number | null;
+  stream_set_deg?: number | null;
   source: 'map' | 'gpx' | 'csv' | 'api';
 };
 
