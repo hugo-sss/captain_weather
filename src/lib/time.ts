@@ -1,15 +1,16 @@
 // UTC plus local offset everywhere numbers are shown (PRD §8.5 unit conventions).
+import { NO_DATA } from './units.ts';
 export function fmtUtc(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return NO_DATA;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return NO_DATA;
   return `${d.toISOString().slice(5, 10).replace('-', '/')} ${d.toISOString().slice(11, 16)}Z`;
 }
 
 export function fmtLocal(iso: string | null | undefined, offsetMin: number | null = null): string {
-  if (!iso) return '—';
+  if (!iso) return NO_DATA;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return NO_DATA;
   const off = offsetMin ?? -d.getTimezoneOffset();
   const local = new Date(d.getTime() + off * 60_000);
   const sign = off >= 0 ? '+' : '−';
@@ -19,7 +20,7 @@ export function fmtLocal(iso: string | null | undefined, offsetMin: number | nul
 }
 
 export function fmtHours(h: number | null | undefined): string {
-  if (h === null || h === undefined || !Number.isFinite(h)) return '—';
+  if (h === null || h === undefined || !Number.isFinite(h)) return NO_DATA;
   const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
   return `${hh}h ${String(mm).padStart(2, '0')}m`;
 }

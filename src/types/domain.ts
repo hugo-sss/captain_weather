@@ -43,10 +43,14 @@ export type DraftWaypoint = {
 
 export const num = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
+export type DetailLevel = 'simple' | 'detailed';
+
 export type DisplayPrefs = {
-  narrative_emphasis: number; // 0..1, ordering and emphasis only, never data access
+  narrative_emphasis: number; // legacy 0..1 ordering weight; no longer shown, kept so stored prefs parse
   use_current: boolean;
   show_openseamap: boolean;
   show_noaa_enc: boolean;
   local_utc_offset_min: number | null; // null = browser local
+  /** Simple hides internals behind tooltips and the full table; Detailed shows every field on the passage page. */
+  detail_level: DetailLevel;
 };

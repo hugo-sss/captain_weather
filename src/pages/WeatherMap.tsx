@@ -1,23 +1,26 @@
-// The front door: a live Windy-style weather map. Hover or tap to inspect, scrub time, switch layers,
-// stack live radar; starting a passage is a refinement on top of this map (PRD §9.1 borrows).
+// The front door: a live weather map that is also a home. Hover or tap to inspect, scrub time, switch
+// layers, stack live radar; plan a passage on top of the same map; see your upcoming passages in the rail.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AttributionControl, CircleMarker, MapContainer, useMap, useMapEvents } from 'react-leaflet';
-import { ChevronRight, MapPin, PanelRightClose, PanelRightOpen, Route, X } from 'lucide-react';
+import { ArrowUpRight, MapPin, PanelRightClose, PanelRightOpen, Route, X } from 'lucide-react';
 import { useWeatherBrowse, type BrowseView } from '@/hooks/useWeatherBrowse.ts';
 import { useDisplayPrefs } from '@/hooks/useDisplayPrefs.ts';
-import { useVessels } from '@/hooks/useVessels.ts';
+import { usePassageSummaries } from '@/hooks/usePassageSummaries.ts';
 import { useIsMobile } from '@/hooks/useMediaQuery.ts';
+import { useNow } from '@/hooks/useNow.ts';
 import { buildScalarGrid, buildVectorGrid, sampleCells } from '@/lib/weather-browse/field.ts';
 import type { FieldKind } from '@/lib/weather-browse/ramps.ts';
 import type { BrowseVar } from '@/lib/weather-browse/types.ts';
+import { MODEL_LABEL } from '@/lib/weather-browse/types.ts';
 import { BaseTiles, OpenSeaMapLayer } from '@/components/map/ChartOverlays.tsx';
 import { DisclaimerBar } from '@/components/map/DisclaimerBar.tsx';
 import { RouteLine } from '@/components/map/RouteLine.tsx';
 import { WaypointMarker } from '@/components/map/WaypointMarker.tsx';
 import { ColourField, FieldLegend } from '@/components/weather/ColourField.tsx';
 import { WindParticles } from '@/components/weather/WindParticles.tsx';
-import { LayerChips } from '@/components/weather/LayerChips.tsx';
+import { LayerBar } from '@/components/weather/LayerBar.tsx';
+import { MapOptions } from '@/components/weather/MapOptions.tsx';
 import { TimeScrubber, type EtaMark } from '@/components/weather/TimeScrubber.tsx';
 import { PointCard } from '@/components/weather/PointCard.tsx';
 import { DailyStrip } from '@/components/weather/DailyStrip.tsx';
@@ -26,7 +29,8 @@ import { isCoarsePointer } from '@/components/weather/mapCanvas.ts';
 import { BuilderPanel } from '@/components/builder/BuilderPanel.tsx';
 import { useBuilderDraft } from '@/components/builder/useBuilderDraft.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { Switch } from '@/components/ui/switch.tsx';
+import { RiskDot } from '@/components/dashboard/RiskPill.tsx';
+import { riskHeadline, whenPhrase } from '@/lib/plain.ts';
 import { cn } from '@/lib/utils.ts';
 
 const VIEW_KEY = 'cpt.weatherView.v1';
@@ -38,7 +42,7 @@ function readView(): { lat: number; lon: number; zoom: number } | null {
   try { const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? 'null'); return v && Number.isFinite(v.lat) && Number.isFinite(v.lon) && Number.isFinite(v.zoom) ? v : null; } catch { return null; }
 }
 
-/** Reports the view (debounced ≥400 ms after moveend, per Open-Meteo's per-location rate weighting) and remembers it. */
+/** Reports the view (debounced 400 ms after moveend, per Open-Meteo's per-location rate weighting) and remembers it. */
 function ViewSync({ onView }: { onView: (v: BrowseView) => void }) {
   const map = useMap();
   const timer = useRef<number | null>(null);
@@ -99,8 +103,9 @@ function PinTracker({ lat, lon, onMove }: { lat: number; lon: number; onMove: (x
 export default function WeatherMap() {
   const wb = useWeatherBrowse();
   const { prefs, update } = useDisplayPrefs();
-  const { vessels } = useVessels();
+  const { summaries, vessels } = usePassageSummaries();
   const mobile = useIsMobile();
+  const nowMs = useNow(60_000);
   const [railOpen, setRailOpen] = useState<boolean | null>(null);
   const [dailyOpen, setDailyOpen] = useState(true);
   const [planning, setPlanning] = useState(false);
@@ -117,6 +122,7 @@ export default function WeatherMap() {
   const leadHours = run && timeIso ? Math.round((Date.parse(timeIso) - Date.parse(run.runIso)) / 3_600_000) : null;
   const marks: EtaMark[] = useMemo(() => draft.withEta.filter((w) => w.eta).map((w) => ({ t: Date.parse(w.eta!), label: `${w.sequence}. ${w.name || 'WP'} · ETA` })), [draft.withEta]);
   const utcOffset = prefs.local_utc_offset_min;
+  const caption = run ? `${MODEL_LABEL[run.model]}, ${run.runLabel.replace('≈ ', 'about ')}${leadHours !== null ? `, ${leadHours >= 0 ? '+' : '-'}${Math.abs(leadHours)} h` : ''}` : MODEL_LABEL[wb.model];
 
   // Arrow keys scrub time anywhere on the page; Esc unpins the card.
   const { setTimeIndex, unpin } = wb;
@@ -142,22 +148,49 @@ export default function WeatherMap() {
   const openRail = () => { setRailOpen(true); if (mobile) wb.unpin(); };
   const stopPlanning = () => { setPlanning(false); setSaved(null); draft.reset(); };
 
+  const upcoming = summaries.filter((s) => s.passage.status === 'active' || s.passage.status === 'planned').sort((a, b) => (a.passage.status === 'active' ? -1 : b.passage.status === 'active' ? 1 : Date.parse(a.passage.planned_departure) - Date.parse(b.passage.planned_departure))).slice(0, 3);
+
   const rail = (
-    <>
+    <div className="p-4 space-y-4">
       <DailyStrip daily={wb.daily} target={wb.dailyTarget} pinned={!!inspect?.pinned} open={dailyOpen} onToggle={() => setDailyOpen((v) => !v)} />
       {planning ? (
-        <BuilderPanel draft={draft} vessels={vessels} embedded saved={saved} onSaved={(pid) => setSaved({ id: pid })} onCancel={stopPlanning} className="flex-1 min-h-0" />
+        <div className="card"><BuilderPanel draft={draft} vessels={vessels} embedded saved={saved} onSaved={(pid) => setSaved({ id: pid })} onCancel={stopPlanning} className="min-h-0" /></div>
       ) : (
-        <div className="p-3 space-y-3">
-          <div>
-            <h2 className="text-[15px] font-semibold flex items-center gap-2"><Route className="h-4 w-4 text-accent" /> Plan a passage</h2>
-            <p className="text-xs text-text-2 mt-1 leading-relaxed">Drop two pins on this map. The route stays on the weather, its leg ETAs become ticks on the time bar, and the full table opens from here.</p>
+        <>
+          <div className="card p-4 space-y-3">
+            <div>
+              <h2 className="t-card flex items-center gap-2"><Route className="h-4 w-4 text-accent" /> Plan a passage</h2>
+              <p className="t-caption mt-1">Drop two pins on this map. The route stays on the weather and its leg ETAs become ticks on the time bar.</p>
+            </div>
+            <Button onClick={startPlanning} className="w-full"><MapPin /> Plan a passage</Button>
           </div>
-          <Button onClick={startPlanning} className="w-full"><MapPin className="h-3.5 w-3.5" /> Plan a passage</Button>
-          <div className="text-[11px] text-text-3 flex items-center justify-between"><Link to="/passages" className="text-text-2 hover:text-accent inline-flex items-center gap-1">Saved passages <ChevronRight className="h-3 w-3" /></Link><Link to="/vessels" className="text-text-2 hover:text-accent inline-flex items-center gap-1">Vessels <ChevronRight className="h-3 w-3" /></Link></div>
-        </div>
+          <div className="card p-4">
+            <div className="flex items-baseline justify-between mb-2"><h2 className="t-card">Your passages</h2><Link to="/passages" className="text-[12px] font-medium text-accent hover:underline underline-offset-2 inline-flex items-center gap-0.5">All passages <ArrowUpRight className="h-3 w-3" /></Link></div>
+            {upcoming.length === 0 ? (
+              <p className="t-caption">Nothing planned yet. Passages you plan show up here with their risk.</p>
+            ) : (
+              <ul className="divide-y divide-border-soft">
+                {upcoming.map((s) => {
+                  const headline = s.conditions.length ? riskHeadline(s.conditions, [], s.waypoints, { utcOffsetMin: utcOffset, nowMs }) : 'Not checked yet.';
+                  const departs = s.passage.actual_departure ?? s.passage.planned_departure;
+                  return (
+                    <li key={s.passage.id}>
+                      <Link to={`/passages/${s.passage.id}`} className="flex items-start gap-3 py-2.5 -mx-1 px-1 rounded-lg hover:bg-bg-elev">
+                        <RiskDot flag={s.worst} className="mt-1.5" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline gap-2"><span className="font-medium truncate">{s.passage.name}</span><span className="t-caption shrink-0">{s.passage.status === 'active' ? 'Underway' : whenPhrase(departs, utcOffset, nowMs, 'relative')}</span></span>
+                          <span className="block t-caption line-clamp-2">{headline}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </>
       )}
-    </>
+    </div>
   );
 
   return (
@@ -184,55 +217,64 @@ export default function WeatherMap() {
             <Pointer planning={planning && !saved} onHover={wb.hover} onSettle={wb.settle} onLeave={wb.clearHover} onPlanClick={draft.addPin} />
           </MapContainer>
 
-          {/* Layer chips: column under the zoom control on desktop, a scrolling row on mobile. */}
-          <div className={cn('absolute z-[1000]', mobile ? 'left-[46px] right-0 top-[40px]' : 'left-2.5 top-[84px]')}>
-            <LayerChips field={field} setField={wb.setField} particles={particles} setParticles={wb.setParticles} radarOn={wb.radarOn} setRadarOn={wb.setRadarOn} model={wb.model} setModel={wb.setModel} run={run} leadHours={leadHours} loading={wb.loading} error={wb.error} layout={mobile ? 'row' : 'column'} />
+          {/* Top left, under the zoom control: map options. */}
+          <div className={cn('absolute left-2.5 z-[1000]', mobile ? 'top-[88px]' : 'top-[92px]')}>
+            <MapOptions model={wb.model} setModel={wb.setModel} run={run} particles={particles} setParticles={wb.setParticles} openSeaMap={prefs.show_openseamap} setOpenSeaMap={(v) => update({ show_openseamap: v })} />
           </div>
 
-          {/* Top right: OpenSeaMap toggle and the rail toggle (desktop). */}
-          <div className={cn('absolute right-2 z-[1000] flex items-center gap-1.5', mobile ? 'top-[80px]' : 'top-9')}>
-            <label className="rounded-md border border-border bg-bg-1/95 backdrop-blur-sm px-2.5 py-1.5 text-[11px] flex items-center gap-2.5 cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.35)]"><span>OpenSeaMap{!mobile && <span className="text-text-3"> crowdsourced, not official</span>}</span><Switch checked={prefs.show_openseamap} onCheckedChange={(v) => update({ show_openseamap: v })} aria-label="OpenSeaMap overlay" /></label>
-            {!mobile && <button type="button" onClick={() => setRailOpen(!open)} aria-label={open ? 'Hide panel' : 'Show panel'} aria-expanded={open} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-1/95 backdrop-blur-sm text-text-2 hover:text-text-1 hover:border-text-3/60">{open ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}</button>}
-          </div>
-
-          {planning && !saved && (
-            <div className={cn('absolute z-[1000] rounded-md border border-accent/40 bg-bg-1/95 backdrop-blur-sm px-2.5 py-1.5 text-[11px] text-text-1 flex items-center gap-2', mobile ? 'left-2 top-[120px]' : 'left-1/2 -translate-x-1/2 top-2')}><MapPin className="h-3.5 w-3.5 text-accent" /> Planning: click the map to drop a pin, drag to move{draft.withEta.length >= 2 && draft.preview && <span className="num text-text-2">· {draft.preview.totalDistanceNm.toFixed(1)} nm</span>}</div>
+          {/* Top right: the rail toggle (desktop). */}
+          {!mobile && (
+            <div className="absolute right-2 top-9 z-[1000]">
+              <button type="button" onClick={() => setRailOpen(!open)} aria-label={open ? 'Hide panel' : 'Show panel'} aria-expanded={open} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-soft bg-bg-1/95 backdrop-blur-sm text-text-2 shadow-card hover:text-text-1">{open ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}</button>
+            </div>
           )}
 
-          {/* Bottom: legend, radar bar, scrubber. */}
-          <div className={cn('absolute left-2 z-[1000] pointer-events-none', wb.radarOn ? (mobile ? 'bottom-[136px]' : 'bottom-[122px]') : (mobile ? 'bottom-[92px]' : 'bottom-[78px]'))}>
-            <FieldLegend kind={field} className="pointer-events-auto" />
-          </div>
+          {planning && !saved && (
+            <div className={cn('absolute z-[1000] rounded-lg border border-accent/40 bg-bg-1/95 backdrop-blur-sm px-3 py-2 text-[12px] text-text-1 flex items-center gap-2 shadow-card', mobile ? 'left-2 right-2 top-[136px]' : 'left-1/2 -translate-x-1/2 top-2')}><MapPin className="h-3.5 w-3.5 text-accent shrink-0" /> Planning: tap the map to drop a pin, drag to move{draft.withEta.length >= 2 && draft.preview && <span className="num text-text-2">· {draft.preview.totalDistanceNm.toFixed(1)} nm</span>}</div>
+          )}
+
+          {/* Bottom: radar bar, layer bar, legend, time bar. */}
           {wb.radarOn && (
-            <div className={cn('absolute z-[1000] right-2', mobile ? 'left-2 bottom-[92px]' : 'left-[290px] bottom-[78px]')}>
+            <div className={cn('absolute z-[1000] left-2 right-2', mobile ? 'bottom-[122px]' : 'bottom-[132px] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-[560px]')}>
               <RadarBar frames={wb.radarFrames} idx={wb.radarIdx} onChange={wb.setRadarFrame} error={wb.radarError} utcOffsetMin={utcOffset} />
             </div>
           )}
+          <div className={cn('absolute z-[1000]', mobile ? 'left-2 right-2 bottom-[74px]' : 'left-1/2 -translate-x-1/2 bottom-[84px]')}>
+            <LayerBar field={field} setField={wb.setField} setParticles={wb.setParticles} radarOn={wb.radarOn} setRadarOn={wb.setRadarOn} compact={mobile} />
+          </div>
+          {!mobile && (
+            <div className="absolute right-2 top-[84px] z-[1000] pointer-events-none">
+              <FieldLegend kind={field} className="pointer-events-auto" />
+            </div>
+          )}
           <div className="absolute left-2 right-2 bottom-2 z-[1000]">
-            <TimeScrubber times={wb.times} index={wb.timeIndex} onChange={wb.setTimeIndex} marks={marks} utcOffsetMin={utcOffset} compact={mobile} />
+            <TimeScrubber times={wb.times} index={wb.timeIndex} onChange={wb.setTimeIndex} marks={marks} utcOffsetMin={utcOffset} compact={mobile} caption={caption} loading={wb.loading} error={wb.error} />
           </div>
 
           {inspect && cardXY && (
             <PointCard lat={inspect.lat} lon={inspect.lon} pinned={inspect.pinned} x={cardXY.x} y={cardXY.y} mobile={mobile} timeIso={timeIso} run={run} leadHours={leadHours}
-              point={wb.point} pointLoading={wb.pointLoading} gridValues={gridValues} onClose={wb.unpin} onPin={() => wb.settle(inspect.lat, inspect.lon, true, cardXY.x, cardXY.y)} />
+              point={wb.point} pointLoading={wb.pointLoading} gridValues={gridValues} onClose={wb.unpin} onPin={() => wb.settle(inspect.lat, inspect.lon, true, cardXY.x, cardXY.y)} utcOffsetMin={utcOffset} />
+          )}
+
+          {/* Mobile: the floating button that brings the sheet back. */}
+          {mobile && !open && (
+            <button type="button" onClick={openRail} className="absolute right-2 bottom-[124px] z-[1100] inline-flex h-10 items-center gap-2 rounded-full border border-border-soft bg-bg-1/95 backdrop-blur-sm px-4 text-[13px] font-medium text-text-1 shadow-card"><Route className="h-4 w-4 text-accent" /> {planning ? 'Passage panel' : 'Plan a passage'}</button>
           )}
         </div>
 
         {/* Right rail (desktop) */}
         {!mobile && open && (
-          <aside className="w-[380px] shrink-0 border-l border-border bg-bg-1 flex flex-col min-h-0 overflow-y-auto">{rail}</aside>
+          <aside className="w-[400px] shrink-0 border-l border-border-soft bg-bg-0 flex flex-col min-h-0 overflow-y-auto">{rail}</aside>
         )}
       </div>
 
       {/* Mobile bottom sheet */}
-      {mobile && (open ? (
-        <div className="fixed inset-x-0 bottom-0 z-[1200] max-h-[72vh] rounded-t-lg border-t border-border bg-bg-1 shadow-[0_-12px_40px_rgba(0,0,0,0.5)] flex flex-col">
-          <div className="flex items-center justify-between px-3 pt-2 pb-1"><span className="mx-auto h-1 w-10 rounded-full bg-border" aria-hidden /><button type="button" onClick={() => setRailOpen(false)} aria-label="Close panel" className="absolute right-2 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-sm text-text-3 hover:text-text-1"><X className="h-4 w-4" /></button></div>
+      {mobile && open && (
+        <div className="fixed inset-x-0 bottom-0 z-[1200] max-h-[76vh] rounded-t-2xl border-t border-border-soft bg-bg-0 shadow-pop flex flex-col">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1"><span className="mx-auto h-1 w-10 rounded-full bg-border" aria-hidden /><button type="button" onClick={() => setRailOpen(false)} aria-label="Close panel" className="absolute right-2 top-1.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-3 hover:text-text-1"><X className="h-4 w-4" /></button></div>
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">{rail}</div>
         </div>
-      ) : (
-        <button type="button" onClick={openRail} className="fixed right-2 z-[1100] inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-1/95 backdrop-blur-sm px-3 text-[12px] font-medium text-text-1 shadow-[0_4px_16px_rgba(0,0,0,0.45)]" style={{ bottom: wb.radarOn ? 184 : 140 }}><Route className="h-3.5 w-3.5 text-accent" /> {planning ? 'Passage panel' : 'Plan a passage'}</button>
-      ))}
+      )}
     </div>
   );
 }

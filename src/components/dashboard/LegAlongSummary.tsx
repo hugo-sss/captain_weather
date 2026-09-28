@@ -10,12 +10,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils.ts';
 
 export function LegAlongSummary({ summary, etaDeltaMin, speedLossPct, className, stacked }: { summary: LegSummary | null; etaDeltaMin: number | null; speedLossPct?: number | null; className?: string; stacked?: boolean }) {
-  if (!summary) return <span className={cn('text-[11px] text-text-3', className)} title="no along-leg points in this run">—</span>;
+  if (!summary) return <span className={cn('text-[11px] text-text-3', className)} title="no along-leg points in this run">no leg points</span>;
   const wp = summary.worstPoint;
   return (
     <span className={cn('inline-flex items-center gap-x-2 gap-y-1 text-xs', stacked ? 'flex-wrap' : 'whitespace-nowrap', className)}>
       <span className="num" title="max wind p90 along the leg">{fmtNum(summary.maxWindP90, 0)}<span className="text-text-3 text-[11px] font-sans ml-0.5">kn</span></span>
-      <span className="num" title="max significant wave height along the leg">{summary.maxHs === null ? <span className="text-text-3">—</span> : <>{fmtNum(summary.maxHs, 1)}<span className="text-text-3 text-[11px] font-sans ml-0.5">m</span></>}</span>
+      <span className="num" title="max significant wave height along the leg">{summary.maxHs === null ? <span className="text-text-3">n/a</span> : <>{fmtNum(summary.maxHs, 1)}<span className="text-text-3 text-[11px] font-sans ml-0.5">m</span></>}</span>
       <RiskPill flag={summary.worstRisk} reasons={wp?.riskReasons} size="sm" />
       <SquallBadge risk={summary.worstSquall} capeJkg={wp?.capeJkg} precipPct={wp?.precipPct} size="sm" />
       {etaDeltaMin !== null && <EtaDelta minutes={etaDeltaMin} speedLossPct={speedLossPct ?? summary.meanSpeedLossPct} />}

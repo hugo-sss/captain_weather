@@ -1,16 +1,17 @@
-// FR24-style field card: small-caps label over a mono value. Hatched when null, with the reason on hover (PRD §9.4).
+// Field card (Detailed mode): sentence-case label over a mono value. Hatched when null, with the reason on hover.
 import type { ReactNode } from 'react';
 import { CircleDashed } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { NO_DATA } from '@/lib/units.ts';
 import { cn } from '@/lib/utils.ts';
 
 export function FieldCard({ label, value, unit, reason, sub, aside, className }: { label: string; value: string | number | null | undefined; unit?: string; reason?: string; sub?: ReactNode; /** Small chip rendered after the value (provenance, squall marker). */ aside?: ReactNode; className?: string }) {
-  const empty = value === null || value === undefined || value === '' || value === '—';
+  const empty = value === null || value === undefined || value === '' || value === NO_DATA;
   const card = (
-    <div className={cn('tile px-3 py-2 min-w-0 min-h-[58px] flex flex-col justify-center transition-colors', empty ? 'gap-hatch border-dashed border-border/80' : 'hover:border-text-3/50', className)} title={empty ? reason : undefined}>
+    <div className={cn('tile px-3.5 py-2.5 min-w-0 min-h-[62px] flex flex-col justify-center transition-colors', empty && 'gap-hatch', className)} title={empty ? reason : undefined}>
       <div className="label truncate">{label}</div>
       {empty ? (
-        <div className="mt-1 flex items-center gap-1.5 text-[12px] text-text-3"><CircleDashed className="h-3 w-3 shrink-0" /> no data</div>
+        <div className="mt-1 flex items-center gap-1.5 text-[13px] text-text-3"><CircleDashed className="h-3.5 w-3.5 shrink-0" /> No data</div>
       ) : (
         <div className="num text-[15px] font-medium leading-tight mt-1 flex items-center gap-1.5 min-w-0"><span className="truncate">{value}{unit ? <span className="font-sans text-[11px] text-text-3 ml-1 font-normal">{unit}</span> : null}</span>{aside}</div>
       )}

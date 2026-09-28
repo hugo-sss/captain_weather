@@ -1,22 +1,14 @@
 import type { ReactNode } from 'react';
+import { Stat, type StatTone } from '@/components/ui/stat.tsx';
 import { cn } from '@/lib/utils.ts';
 
-export type Kpi = { label: string; value: ReactNode; aside?: ReactNode; tone?: 'default' | 'green' | 'amber' | 'red' | 'violet' };
-const TONE: Record<NonNullable<Kpi['tone']>, string> = { default: 'text-text-1', green: 'text-risk-green', amber: 'text-risk-amber', red: 'text-risk-red', violet: 'text-flag-violet' };
+export type Kpi = { label: string; value: ReactNode | null; aside?: ReactNode; tone?: StatTone };
 
-/** Terminal-style KPI strip: label above value, value in mono, delta or flag beside it (PRD §9.4). Reads first on the page. */
+/** A row of stats for the full table page: label above value, the number in mono, a short aside under it. */
 export function KpiStrip({ items, className }: { items: Kpi[]; className?: string }) {
   return (
-    <div className={cn('grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-y-3 lg:gap-y-2', className)}>
-      {items.map((k, i) => (
-        <div key={k.label} className={cn('min-w-0 lg:pr-6 lg:mr-6 lg:border-r lg:border-border', i === items.length - 1 && 'lg:border-r-0 lg:mr-0 lg:pr-0')}>
-          <div className="label">{k.label}</div>
-          <div className={cn('mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5', TONE[k.tone ?? 'default'])}>
-            <span className="num text-[20px] font-medium leading-none tracking-tight">{k.value}</span>
-            {k.aside && <span className="text-[11px] text-text-3 font-sans leading-none">{k.aside}</span>}
-          </div>
-        </div>
-      ))}
+    <div className={cn('grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-x-6 gap-y-4', className)}>
+      {items.map((k) => <Stat key={k.label} label={k.label} value={typeof k.value === 'string' ? <span className="num">{k.value}</span> : k.value} sub={k.aside} tone={k.tone} reason="No run yet" />)}
     </div>
   );
 }

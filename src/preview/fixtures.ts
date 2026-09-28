@@ -74,6 +74,22 @@ for (const [i, [name, lat, lon]] of ([['Gocek', 36.755, 28.94], ['Kizilada', 36.
   waypoints.push({ id: `p2wp${i + 1}`, passage_id: 'p2', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: false, planned_departure_from_here: null, anchorage_exposure_tag: null, is_complex_coastal: false, charted_depth_m: null, charted_depth_source: null, eta: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), leg_distance_nm: i === 0 ? 0 : 42.3, leg_bearing_deg: null, arrived: true, arrived_at: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), source: 'csv', created_at: iso(NOW - 15 * 24 * H), updated_at: iso(NOW - 11 * 24 * H) });
 }
 
+// Planned passage p4 (Lefkada to Corfu on the tender at 26 kn): a route with engine ETAs and no conditions run,
+// so the passage page's empty state ("Not checked yet") and the list's "Upcoming" group have something real to show.
+{
+  const dep4 = Date.parse(String(passages[3].planned_departure));
+  const seeds4 = [['Lefkada', 38.830, 20.710], ['Gaios, Paxos', 39.200, 20.185], ['Corfu', 39.622, 19.920]] as const;
+  let t4 = dep4;
+  seeds4.forEach(([name, lat, lon], i) => {
+    const prev = seeds4[i - 1];
+    const dist = prev ? haversineNm(prev[1], prev[2], lat, lon) : 0;
+    const brg = prev ? initialBearingDeg(prev[1], prev[2], lat, lon) : null;
+    if (prev) t4 += (dist / 26) * H;
+    waypoints.push({ id: `p4wp${i + 1}`, passage_id: 'p4', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: i === 1, planned_departure_from_here: i === 1 ? iso(t4 + 3 * H) : null, anchorage_exposure_tag: i === 1 ? 'sheltered' : null, is_complex_coastal: false, charted_depth_m: i === 1 ? 9 : null, charted_depth_source: i === 1 ? 'user' : null, eta: iso(t4), leg_distance_nm: round1(dist), leg_bearing_deg: brg === null ? null : Math.round(brg), arrived: false, arrived_at: null, source: 'map', created_at: iso(NOW - 45 * 24 * H), updated_at: iso(NOW - 38 * 24 * H) });
+    if (i === 1) t4 += 3 * H;
+  });
+}
+
 // ---- Runs ----------------------------------------------------------------------------------
 export const conditions_runs: Row[] = [
   { id: 'run-2', passage_id: 'p1', kind: 'recheck', status: 'complete', trigger: 'scheduled', previous_run_id: 'run-1', created_at: iso(NOW - 0.7 * H), completed_at: iso(NOW - 0.65 * H), error: null, sources_used: { atmospheric: 'google_weathernext2_ensemble', comparison: 'ncep_gfs_global', marine: 'meteofrance_wave', tidal: 'tidesatlas' }, waypoints_evaluated: 5 },

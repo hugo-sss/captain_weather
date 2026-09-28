@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ACCENT, RISK_HEX } from '@/lib/risk-colors.ts';
 import type { LegPoint, LegProfileData } from '@/lib/leg-profile.ts';
 import { gustSourceChip } from '@/lib/gust-source.ts';
-import { fmtLocal, fmtUtc } from '@/lib/time.ts';
+import { compassWord, localClock, localDayTime, plainReason } from '@/lib/plain.ts';
 import { fmtNum } from '@/lib/units.ts';
 import { RiskPill } from './RiskPill.tsx';
 import { SquallBadge } from './SquallBadge.tsx';
@@ -22,11 +22,12 @@ type Props = {
 
 const LANES = [
   { key: 'wind', label: 'Wind kn', h: 120 },
-  { key: 'wave', label: 'Hs m', h: 70 },
-  { key: 'current', label: 'Cur kn', h: 56 },
-  { key: 'squall', label: 'Squall', h: 26 },
+  { key: 'wave', label: 'Sea m', h: 70 },
+  { key: 'current', label: 'Current kn', h: 56 },
+  { key: 'squall', label: 'Squalls', h: 26 },
 ] as const;
-const TOP = 46, LEFT = 56, RIGHT = 26, GAP = 8, AXIS = 30;
+const TOP = 46, LEFT = 66, RIGHT = 26, GAP = 8, AXIS = 30;
+const SANS = 'Inter, system-ui, sans-serif';
 
 function useWidth(min: number) {
   const ref = useRef<HTMLDivElement>(null);
@@ -41,7 +42,7 @@ function useWidth(min: number) {
 }
 
 const nice = (v: number) => (v <= 5 ? 5 : v <= 10 ? 10 : v <= 20 ? 20 : v <= 30 ? 30 : v <= 40 ? 40 : v <= 50 ? 50 : Math.ceil(v / 10) * 10);
-const hhmm = (iso: string) => fmtUtc(iso).slice(6);
+const clock = (iso: string, off: number | null) => localClock(iso, off) ?? '';
 
 export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, className, minWidth = 640 }: Props) {
   const { ref, w } = useWidth(minWidth);
@@ -87,7 +88,7 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
   return (
     <div ref={ref} className={cn('relative w-full overflow-x-auto', className)} onMouseLeave={() => setHover(null)}>
       {n === 0 ? (
-        <div className="h-40 gap-hatch rounded-md border border-dashed border-border flex items-center justify-center text-center px-6 text-xs text-text-3">no along-leg points for this leg in the latest run (compute conditions to sample the leg every ~6 h)</div>
+        <div className="h-40 gap-hatch rounded-lg flex items-center justify-center text-center px-6 text-[13px] text-text-3">No points sampled along this leg in the latest check</div>
       ) : (
         <svg width={w} height={H} className="block select-none" role="img" aria-label={`Conditions along the leg ${fromName} to ${toName}`}>
           <defs>
@@ -103,7 +104,7 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
           {LANES.map((l) => (
             <g key={l.key}>
               <line x1={LEFT} x2={w - RIGHT} y1={laneTop[l.key] + l.h} y2={laneTop[l.key] + l.h} stroke={grid} />
-              <text x={LEFT - 6} y={laneTop[l.key] + 10} textAnchor="end" fontSize={9} fill={ink3} fontFamily="Inter, system-ui, sans-serif" style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l.label}</text>
+              <text x={LEFT - 6} y={laneTop[l.key] + 10} textAnchor="end" fontSize={10} fill={ink3} fontFamily={SANS}>{l.label}</text>
             </g>
           ))}
           {[windMax, windMax / 2].map((v) => <g key={`wg-${v}`}><line x1={LEFT} x2={w - RIGHT} y1={yWind(v)} y2={yWind(v)} stroke={grid} strokeDasharray="2 4" /><text x={w - RIGHT + 2} y={yWind(v) + 3} fontSize={9} fill={ink3} fontFamily="JetBrains Mono, monospace">{v}</text></g>)}
@@ -117,8 +118,8 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
             </g>
           ))}
           {/* Vessel limits. */}
-          {maxWindKn !== null && maxWindKn <= windMax && <g><line x1={LEFT} x2={w - RIGHT} y1={yWind(maxWindKn)} y2={yWind(maxWindKn)} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} /><text x={LEFT + 4} y={yWind(maxWindKn) - 3} fontSize={9} fill={RISK_HEX.red} fontFamily="JetBrains Mono, monospace">limit {maxWindKn} kn</text></g>}
-          {maxWaveM !== null && maxWaveM <= waveMax && <g><line x1={LEFT} x2={w - RIGHT} y1={yWave(maxWaveM)} y2={yWave(maxWaveM)} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} /><text x={LEFT + 4} y={yWave(maxWaveM) - 3} fontSize={9} fill={RISK_HEX.red} fontFamily="JetBrains Mono, monospace">limit {maxWaveM} m</text></g>}
+          {maxWindKn !== null && maxWindKn <= windMax && <g><line x1={LEFT} x2={w - RIGHT} y1={yWind(maxWindKn)} y2={yWind(maxWindKn)} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} /><text x={LEFT + 4} y={yWind(maxWindKn) - 3} fontSize={9} fill={RISK_HEX.red} fontFamily={SANS}>Your limit {maxWindKn} kn</text></g>}
+          {maxWaveM !== null && maxWaveM <= waveMax && <g><line x1={LEFT} x2={w - RIGHT} y1={yWave(maxWaveM)} y2={yWave(maxWaveM)} stroke={RISK_HEX.red} strokeWidth={1} strokeOpacity={0.9} /><text x={LEFT + 4} y={yWave(maxWaveM) - 3} fontSize={9} fill={RISK_HEX.red} fontFamily={SANS}>Your limit {maxWaveM} m</text></g>}
           {/* Wind lane. */}
           <path d={bandPath()} fill={accent} fillOpacity={print ? 0.12 : 0.18} stroke="none" />
           <path d={path((p) => p.windP50, yWind)} fill="none" stroke={accent} strokeWidth={1.75} />
@@ -137,12 +138,12 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
           <path d={path((p) => p.currentKn, yCur)} fill="none" stroke={ink2} strokeWidth={1.25} />
           {pts.map((p) => p.currentKn !== null && p.currentDir !== null && arrow(x(p.distanceNm), yCur(p.currentKn), p.currentDir, 5, ink, false))}
           {/* Squall row. */}
-          {pts.map((p) => p.squall !== 'none' && <g key={`q-${p.id}`}>{bolt(x(p.distanceNm), laneTop.squall + LANES[3].h / 2, p.squall === 'likely')}<text x={x(p.distanceNm) + 7} y={laneTop.squall + LANES[3].h / 2 + 3} fontSize={9} fill={ink2} fontFamily="JetBrains Mono, monospace">{p.squall}</text></g>)}
+          {pts.map((p) => p.squall !== 'none' && <g key={`q-${p.id}`}>{bolt(x(p.distanceNm), laneTop.squall + LANES[3].h / 2, p.squall === 'likely')}<text x={x(p.distanceNm) + 7} y={laneTop.squall + LANES[3].h / 2 + 3} fontSize={9} fill={ink2} fontFamily={SANS}>{p.squall}</text></g>)}
           {/* Point columns: ETA + wind direction at the top, hairline, distance at the bottom. */}
           {pts.map((p, j) => (
             <g key={`c-${p.id}`}>
               <line x1={x(p.distanceNm)} x2={x(p.distanceNm)} y1={TOP - 4} y2={H - AXIS} stroke={ink3} strokeOpacity={0.35} strokeDasharray="2 3" />
-              <text x={x(p.distanceNm)} y={14} textAnchor="middle" fontSize={10} fill={j === 0 || j === n - 1 || n <= 8 || j % 2 === 0 ? ink : 'transparent'} fontFamily="JetBrains Mono, monospace">{hhmm(p.eta)}</text>
+              <text x={x(p.distanceNm)} y={14} textAnchor="middle" fontSize={10} fill={j === 0 || j === n - 1 || n <= 8 || j % 2 === 0 ? ink : 'transparent'} fontFamily="JetBrains Mono, monospace">{clock(p.eta, utcOffsetMin)}</text>
               {p.windDir !== null && arrow(x(p.distanceNm), 27, p.windDir, 4.5, ink2, true)}
               <text x={x(p.distanceNm)} y={H - AXIS + 12} textAnchor="middle" fontSize={9} fill={ink3} fontFamily="JetBrains Mono, monospace">{p.distanceNm.toFixed(0)} nm</text>
               {!print && <rect x={x(bounds[j])} y={0} width={Math.max(0, x(bounds[j + 1]) - x(bounds[j]))} height={H} fill="transparent" onMouseEnter={() => setHover(j)} onClick={() => setHover(j)} style={{ cursor: 'crosshair' }} />}
@@ -154,31 +155,32 @@ export function LegProfile({ leg, maxWindKn, maxWaveM, utcOffsetMin, print, clas
           <text x={LEFT + plotW / 2} y={H - 4} textAnchor="middle" fontSize={9} fill={ink3} fontFamily="JetBrains Mono, monospace">{leg.distanceNm.toFixed(1)} nm · {n} points</text>
         </svg>
       )}
-      {hovered && !print && <PointHoverCard p={hovered} utcOffsetMin={utcOffsetMin} style={{ left: Math.min(Math.max(8, x(hovered.distanceNm) - 120), Math.max(8, w - 256)), top: TOP + 2 }} />}
+      {hovered && !print && <PointHoverCard p={hovered} utcOffsetMin={utcOffsetMin} style={{ left: Math.min(Math.max(8, x(hovered.distanceNm) - 130), Math.max(8, w - 276)), top: TOP + 2 }} />}
     </div>
   );
 }
 
-const Row = ({ k, v }: { k: string; v: React.ReactNode }) => <div className="contents"><span className="text-text-3">{k}</span><span className="num text-text-1">{v}</span></div>;
+const Row = ({ k, v }: { k: string; v: React.ReactNode }) => <div className="contents"><span className="text-text-3">{k}</span><span className="text-text-1">{v}</span></div>;
+const noData = 'No data';
 
-/** Compact numbers for one point: wind, gust + source, sea, current, squall, risk and data gaps. */
+/** One point along the leg in plain words: wind, gusts and their source, sea, swell, current, the other model, squalls, why it is flagged and what is missing. */
 export function PointHoverCard({ p, utcOffsetMin, style, className }: { p: LegPoint; utcOffsetMin: number | null; style?: React.CSSProperties; className?: string }) {
+  const loss = p.speedLossPct === null ? '' : p.speedLossPct > 0 ? `, ${fmtNum(p.speedLossPct, 0)}% slower` : p.speedLossPct < 0 ? `, ${fmtNum(-p.speedLossPct, 0)}% faster` : '';
   return (
-    <div className={cn('absolute z-20 w-[248px] rounded-md border border-border bg-bg-2/[0.97] backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)] p-2.5 text-[11px] pointer-events-none', className)} style={style} role="status">
-      <div className="flex items-center gap-2 mb-1.5"><span className="num text-text-1 font-medium">{p.distanceNm.toFixed(1)} nm</span><span className="num text-text-2">{fmtUtc(p.eta)}</span><span className="num text-text-3">{fmtLocal(p.eta, utcOffsetMin)}</span><span className="ml-auto"><RiskPill flag={p.risk} size="sm" /></span></div>
+    <div className={cn('absolute z-20 w-[276px] rounded-lg border border-border-soft bg-bg-2/[0.97] backdrop-blur-sm shadow-pop p-3 text-[11.5px] leading-snug pointer-events-none', className)} style={style} role="status">
+      <div className="flex items-center gap-2 mb-1.5"><span className="num text-text-1 font-medium">{p.distanceNm.toFixed(1)} nm</span><span className="text-text-2">{localDayTime(p.eta, utcOffsetMin)} local</span><span className="ml-auto"><RiskPill flag={p.risk} size="sm" /></span></div>
       <div className="grid gap-x-3 gap-y-0.5" style={{ gridTemplateColumns: 'max-content 1fr' }}>
-        <Row k="wind p10/50/90" v={p.windP50 === null ? '—' : <>{fmtNum(p.windP10, 0)} / <b>{fmtNum(p.windP50, 0)}</b> / {fmtNum(p.windP90, 0)} kn{p.windDir !== null && <span className="text-text-3"> · from {Math.round(p.windDir)}°</span>}</>} />
-        <Row k="gust p90" v={p.gustP90 === null ? '—' : <>{fmtNum(p.gustP90, 0)} kn <GustSourceChip source={p.gustSource} /></>} />
-        <Row k="wave Hs" v={p.waveHs === null ? '—' : `${fmtNum(p.waveHs, 1)} m · ${fmtNum(p.wavePeriod, 0)} s${p.waveDir !== null ? ` · ${Math.round(p.waveDir)}°` : ''}`} />
-        <Row k="swell" v={p.swellHs === null ? '—' : `${fmtNum(p.swellHs, 1)} m · ${fmtNum(p.swellPeriod, 0)} s · ${Math.round(p.swellDir ?? 0)}°`} />
-        <Row k="current" v={p.currentKn === null ? '—' : `${fmtNum(p.currentKn, 1)} kn → ${Math.round(p.currentDir ?? 0)}°`} />
-        <Row k="speed loss" v={p.speedLossPct === null ? '—' : `${fmtNum(p.speedLossPct, 0)} %`} />
-        <Row k="comparison" v={p.cmpWind === null ? '—' : <>{fmtNum(p.cmpWind, 0)} kn / {Math.round(p.cmpDir ?? 0)}°{p.disagreement && <span className="text-flag-violet"> · diverge</span>}</>} />
-        <Row k="squall" v={p.squall === 'none' ? 'none' : <SquallBadge risk={p.squall} capeJkg={p.capeJkg} precipPct={p.precipPct} size="sm" />} />
-        <Row k="cape · precip" v={`${p.capeJkg === null ? '—' : Math.round(p.capeJkg) + ' J/kg'} · ${p.precipPct === null ? '—' : Math.round(p.precipPct) + ' %'}`} />
+        <Row k="Wind" v={p.windP50 === null ? noData : `${fmtNum(p.windP50, 0)} kn${p.windDir !== null ? ` from the ${compassWord(p.windDir)}` : ''}, ${fmtNum(p.windP10, 0)} to ${fmtNum(p.windP90, 0)} likely`} />
+        <Row k="Gusts" v={p.gustP90 === null ? noData : <>{fmtNum(p.gustP90, 0)} kn <GustSourceChip source={p.gustSource} /></>} />
+        <Row k="Sea" v={p.waveHs === null ? noData : `${fmtNum(p.waveHs, 1)} m at ${fmtNum(p.wavePeriod, 0)} s`} />
+        <Row k="Swell" v={p.swellHs === null ? noData : `${fmtNum(p.swellHs, 1)} m at ${fmtNum(p.swellPeriod, 0)} s${p.swellDir !== null ? ` from the ${compassWord(p.swellDir)}` : ''}`} />
+        <Row k="Current" v={p.currentKn === null ? noData : `${fmtNum(p.currentKn, 1)} kn${p.currentDir !== null ? ` setting ${compassWord(p.currentDir)}` : ''}${loss}`} />
+        <Row k="Other model" v={p.cmpWind === null ? noData : <>{fmtNum(p.cmpWind, 0)} kn{p.cmpDir !== null ? ` from the ${compassWord(p.cmpDir)}` : ''}{p.disagreement && <span className="text-flag-violet">, models disagree</span>}</>} />
+        <Row k="Squalls" v={p.squall === 'none' ? 'None expected' : <SquallBadge risk={p.squall} capeJkg={p.capeJkg} precipPct={p.precipPct} size="sm" />} />
+        <Row k="Rain" v={p.precipPct === null ? noData : `${Math.round(p.precipPct)}% chance`} />
       </div>
-      {p.riskReasons.length > 0 && <ul className="mt-1.5 pt-1.5 border-t border-border space-y-0.5 num text-text-2">{p.riskReasons.map((r) => <li key={r}>{r}</li>)}</ul>}
-      {p.dataGaps.length > 0 && <div className="mt-1.5 pt-1.5 border-t border-border text-text-3">no data: <span className="num text-text-2">{p.dataGaps.join(', ')}</span></div>}
+      {p.riskReasons.length > 0 && <ul className="mt-1.5 pt-1.5 border-t border-border space-y-0.5 text-text-2">{p.riskReasons.map((r) => <li key={r}>{plainReason(r)}</li>)}</ul>}
+      {p.dataGaps.length > 0 && <div className="mt-1.5 pt-1.5 border-t border-border text-text-3">No {p.dataGaps.map((g) => (g === 'marine' ? 'sea state' : g)).join(', ')} data here</div>}
     </div>
   );
 }

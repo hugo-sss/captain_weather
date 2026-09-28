@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DisplayPrefs } from '@/types/domain.ts';
 
 const KEY = 'cpt.displayPrefs.v1';
-const DEFAULTS: DisplayPrefs = { narrative_emphasis: 0, use_current: false, show_openseamap: true, show_noaa_enc: false, local_utc_offset_min: null };
+const DEFAULTS: DisplayPrefs = { narrative_emphasis: 0, use_current: false, show_openseamap: true, show_noaa_enc: false, local_utc_offset_min: null, detail_level: 'simple' };
 
 function read(): DisplayPrefs {
   try { const raw = localStorage.getItem(KEY); return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS; } catch { return DEFAULTS; }
