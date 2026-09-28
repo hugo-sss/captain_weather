@@ -11,7 +11,7 @@ export const supabase = createClient<Database>(url ?? 'http://localhost:54321', 
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-export type FunctionName = 'plan-targets' | 'ingest-tick' | 'compute-conditions' | 'generate-briefing';
+export type FunctionName = 'plan-targets' | 'ingest-tick' | 'compute-conditions' | 'generate-briefing' | 'point-tide';
 
 /** Invoke an edge function as the signed-in user. Returns parsed JSON or throws with the server's message. */
 export async function invokeFunction<T = unknown>(name: FunctionName, body: Record<string, unknown>): Promise<T> {

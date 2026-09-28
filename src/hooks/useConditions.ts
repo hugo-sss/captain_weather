@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invokeFunction, supabase } from '@/lib/supabase.ts';
 import type { AnchorageConditionsRow, ConditionsRunRow, IngestTargetRow, WaypointConditionsRow } from '@/types/domain.ts';
+import { readBundle, writeBundlePart } from '@/lib/offline-cache.ts';
+import { reportOffline, reportOnline } from './useOffline.ts';
+import { must } from './usePassage.ts';
 
 export type ConditionsBundle = {
   run: ConditionsRunRow | null;
@@ -19,17 +22,29 @@ export function useConditions(passageId: string | undefined) {
 
   const reload = useCallback(async () => {
     if (!passageId) return;
-    const { data: runs } = await supabase.from('conditions_runs').select('*').eq('passage_id', passageId).order('created_at', { ascending: false }).limit(5);
-    const run = (runs ?? []).find((r) => r.status === 'complete') ?? (runs ?? [])[0] ?? null;
-    const previousRun = run?.previous_run_id ? (await supabase.from('conditions_runs').select('*').eq('id', run.previous_run_id).maybeSingle()).data ?? null : null;
-    const [{ data: conditions }, { data: anchorages }, { data: links }] = await Promise.all([
-      run ? supabase.from('waypoint_conditions').select('*').eq('run_id', run.id) : Promise.resolve({ data: [] as WaypointConditionsRow[] }),
-      run ? supabase.from('anchorage_conditions').select('*').eq('run_id', run.id) : Promise.resolve({ data: [] as AnchorageConditionsRow[] }),
-      supabase.from('passage_ingest_targets').select('target_id').eq('passage_id', passageId),
-    ]);
-    const ids = (links ?? []).map((l) => l.target_id);
-    const { data: targets } = ids.length ? await supabase.from('ingest_targets').select('*').in('id', ids) : { data: [] as IngestTargetRow[] };
-    setData({ run, previousRun, conditions: conditions ?? [], anchorages: anchorages ?? [], targets: targets ?? [] });
+    try {
+      const runs = must(await supabase.from('conditions_runs').select('*').eq('passage_id', passageId).order('created_at', { ascending: false }).limit(5));
+      const run = (runs ?? []).find((r) => r.status === 'complete') ?? (runs ?? [])[0] ?? null;
+      const previousRun = run?.previous_run_id ? must(await supabase.from('conditions_runs').select('*').eq('id', run.previous_run_id).maybeSingle()) ?? null : null;
+      const [conditions, anchorages, links] = await Promise.all([
+        run ? supabase.from('waypoint_conditions').select('*').eq('run_id', run.id).then(must) : Promise.resolve([] as WaypointConditionsRow[]),
+        run ? supabase.from('anchorage_conditions').select('*').eq('run_id', run.id).then(must) : Promise.resolve([] as AnchorageConditionsRow[]),
+        supabase.from('passage_ingest_targets').select('target_id').eq('passage_id', passageId).then(must),
+      ]);
+      const ids = (links ?? []).map((l) => l.target_id);
+      const targets = ids.length ? must(await supabase.from('ingest_targets').select('*').in('id', ids)) : ([] as IngestTargetRow[]);
+      setData({ run, previousRun, conditions: conditions ?? [], anchorages: anchorages ?? [], targets: targets ?? [] });
+      reportOnline();
+      void writeBundlePart(passageId, { run, conditions: conditions ?? [], anchorages: anchorages ?? [] });
+    } catch (e) {
+      const cached = await readBundle(passageId);
+      if (cached?.run !== undefined) {
+        setData({ run: cached.run ?? null, previousRun: null, conditions: cached.conditions ?? [], anchorages: cached.anchorages ?? [], targets: [] });
+        reportOffline(cached.saved_at);
+      } else {
+        setError((e as Error).message);
+      }
+    }
     setLoading(false);
   }, [passageId]);
 

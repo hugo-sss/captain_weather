@@ -1,13 +1,14 @@
-// Comparison view: primary ensemble vs comparison model per leg, deltas, flagged rows in violet, source + init shown (PRD §9.5 screen 4).
-import { GitCompareArrows } from 'lucide-react';
+// Comparison table: primary ensemble against the comparison model per waypoint, differences, flagged rows in violet, source and run shown.
 import type { WaypointConditionsRow, WaypointRow } from '@/types/domain.ts';
 import { num } from '@/types/domain.ts';
 import { fmtUtc } from '@/lib/time.ts';
 import { fmtNum } from '@/lib/units.ts';
+import { sourceName, utcStamp } from '@/lib/plain.ts';
 import { DirArrow } from '@/components/dashboard/WindBand.tsx';
+import { DisagreementBadge } from '@/components/dashboard/DisagreementBadge.tsx';
 import { cn } from '@/lib/utils.ts';
 
-const Gap = ({ reason }: { reason: string }) => <span className="inline-block h-3 w-10 gap-hatch rounded-sm border border-border/60 align-middle" title={reason} />;
+const Gap = ({ reason }: { reason: string }) => <span className="inline-block h-3 w-10 gap-hatch rounded-sm align-middle" title={reason} />;
 const Unit = ({ children }: { children: React.ReactNode }) => <span className="text-text-3 text-[11px] font-sans ml-0.5">{children}</span>;
 
 export function ComparisonTable({ waypoints, conditions, thresholds }: { waypoints: WaypointRow[]; conditions: WaypointConditionsRow[]; thresholds: { wind_speed_kn: number; wind_dir_deg: number; light_air_floor_kn: number } }) {
@@ -18,16 +19,16 @@ export function ComparisonTable({ waypoints, conditions, thresholds }: { waypoin
         <table className="data-table min-w-full">
           <thead>
             <tr className="groups">
-              <th colSpan={3}>Leg</th>
+              <th colSpan={3}>Waypoint</th>
               <th colSpan={4} className="!text-accent/90">Primary ensemble</th>
               <th colSpan={4} className="!text-flag-violet/90">Comparison model</th>
-              <th colSpan={3}>Delta · flag</th>
+              <th colSpan={3}>Difference</th>
             </tr>
             <tr>
-              <th className="r">#</th><th>Waypoint</th><th>ETA UTC</th>
-              <th>Source</th><th>p10 / p50 / p90</th><th>Dir from</th><th>Init</th>
-              <th>Source</th><th className="r">Wind</th><th>Dir from</th><th>Init</th>
-              <th className="r">Δ speed</th><th className="r">Δ dir</th><th>Flag</th>
+              <th className="r">No.</th><th>Name</th><th>ETA UTC</th>
+              <th>Source</th><th>p10 / p50 / p90</th><th>From</th><th>Run</th>
+              <th>Source</th><th className="r">Wind</th><th>From</th><th>Run</th>
+              <th className="r">Speed</th><th className="r">Direction</th><th>Models</th>
             </tr>
           </thead>
           <tbody>
@@ -38,21 +39,21 @@ export function ComparisonTable({ waypoints, conditions, thresholds }: { waypoin
               const dS = num(c?.wind_speed_delta_kn), dD = num(c?.wind_dir_delta_deg);
               return (
                 <tr key={wp.id} className={cn(flagged && 'is-flagged')}>
-                  <td className="num text-text-3 r">{wp.sequence}</td><td className="font-medium">{wp.name ?? '—'}</td><td className="num text-text-2">{fmtUtc(c?.eta ?? wp.eta)}</td>
-                  <td className="num text-[11px] text-text-2">{c?.atmos_source ?? '—'}</td>
+                  <td className="num text-text-3 r">{wp.sequence}</td><td className="font-medium">{wp.name ?? `Waypoint ${wp.sequence}`}</td><td className="num text-text-2">{fmtUtc(c?.eta ?? wp.eta)}</td>
+                  <td className="text-[12px] text-text-2">{sourceName(c?.atmos_source) ?? <Gap reason="no atmospheric data" />}</td>
                   <td className="num">{c?.wind_p50_kn !== null && c?.wind_p50_kn !== undefined ? <><span className="text-text-2">{fmtNum(num(c.wind_p10_kn), 0)}</span> <span className="text-text-3">/</span> <span className="font-medium">{fmtNum(num(c.wind_p50_kn), 0)}</span> <span className="text-text-3">/</span> <span className="text-text-2">{fmtNum(num(c.wind_p90_kn), 0)}</span><Unit>kn</Unit></> : <Gap reason="no atmospheric data" />}</td>
                   <td><DirArrow deg={c?.wind_dir_mean_deg} spread={c?.wind_dir_spread_deg} /></td>
-                  <td className="num text-[11px] text-text-3">{fmtUtc(c?.atmos_init_time)}</td>
-                  <td className="num text-[11px] text-text-2">{c?.comparison_source ?? '—'}</td>
+                  <td className="num text-[11px] text-text-3">{utcStamp(c?.atmos_init_time) ?? <Gap reason="no run" />}</td>
+                  <td className="text-[12px] text-text-2">{sourceName(c?.comparison_source) ?? <Gap reason="no comparison model" />}</td>
                   <td className="num r">{c?.comparison_wind_kn !== null && c?.comparison_wind_kn !== undefined ? <><span className="font-medium">{fmtNum(num(c.comparison_wind_kn), 0)}</span><Unit>kn</Unit></> : <Gap reason="no comparison row for this hour" />}</td>
                   <td><DirArrow deg={c?.comparison_wind_dir_deg} muted /></td>
-                  <td className="num text-[11px] text-text-3">{fmtUtc(dd?.comparison_init_time)}</td>
-                  <td className={cn('num r', dS !== null && dS > thresholds.wind_speed_kn ? 'text-flag-violet font-medium' : 'text-text-2')}>{dS !== null ? <>{fmtNum(dS, 1)}<Unit>kn</Unit></> : '—'}</td>
-                  <td className={cn('num r', dD !== null && dD > thresholds.wind_dir_deg ? 'text-flag-violet font-medium' : 'text-text-2')}>{dD !== null ? `${fmtNum(dD, 0)}°` : '—'}</td>
-                  <td className="text-xs">
-                    {flagged ? <span className="inline-flex h-5 items-center gap-1 rounded-sm border border-flag-violet/50 bg-flag-violet/15 px-1.5 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-flag-violet"><GitCompareArrows className="h-3 w-3" /> Diverge</span>
-                      : dd?.fired?.light_air_suppressed ? <span className="text-[10px] uppercase tracking-[0.05em] text-text-3" title={`delta over threshold but p50 below ${thresholds.light_air_floor_kn} kn`}>light air</span>
-                      : <span className="text-[10px] uppercase tracking-[0.05em] text-text-3/70">agree</span>}
+                  <td className="num text-[11px] text-text-3">{utcStamp(dd?.comparison_init_time) ?? <Gap reason="no comparison run" />}</td>
+                  <td className={cn('num r', dS !== null && dS > thresholds.wind_speed_kn ? 'text-flag-violet font-medium' : 'text-text-2')}>{dS !== null ? <>{fmtNum(dS, 1)}<Unit>kn</Unit></> : <Gap reason="one side missing" />}</td>
+                  <td className={cn('num r', dD !== null && dD > thresholds.wind_dir_deg ? 'text-flag-violet font-medium' : 'text-text-2')}>{dD !== null ? `${fmtNum(dD, 0)}°` : <Gap reason="one side missing" />}</td>
+                  <td className="text-[12px]">
+                    {flagged ? <DisagreementBadge active size="sm" speedDelta={dS} dirDelta={dD} primary={c?.atmos_source} comparison={c?.comparison_source} />
+                      : dd?.fired?.light_air_suppressed ? <span className="text-[11px] text-text-3" title={`difference over the threshold but the median is below ${thresholds.light_air_floor_kn} kn`}>Light air, ignored</span>
+                      : c ? <span className="text-[11px] text-text-3">Agree</span> : <Gap reason="no run" />}
                   </td>
                 </tr>
               );
@@ -60,8 +61,8 @@ export function ComparisonTable({ waypoints, conditions, thresholds }: { waypoin
           </tbody>
         </table>
       </div>
-      <p className="px-4 py-2.5 text-[11px] text-text-3 border-t border-border">
-        <span className="label mr-2">Thresholds</span>speed Δ &gt; <span className="num text-text-2">{thresholds.wind_speed_kn} kn</span> or direction Δ &gt; <span className="num text-text-2">{thresholds.wind_dir_deg}°</span>, only when the primary p50 is at least <span className="num text-text-2">{thresholds.light_air_floor_kn} kn</span>. The models are independent; the delivery pipe (Open-Meteo) is shared.
+      <p className="px-5 py-3 text-[12px] text-text-3 border-t border-border-soft">
+        The models disagree when the speed differs by more than <span className="num text-text-2">{thresholds.wind_speed_kn} kn</span> or the direction by more than <span className="num text-text-2">{thresholds.wind_dir_deg}°</span>, and only when the primary median is at least <span className="num text-text-2">{thresholds.light_air_floor_kn} kn</span>. The models are independent; both arrive through Open-Meteo.
       </p>
     </div>
   );

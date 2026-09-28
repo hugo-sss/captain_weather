@@ -12,7 +12,12 @@ export type EngineWaypoint = {
   departureFromHere?: string | null;
   arrived: boolean;
   arrivedAt?: string | null;
+  /** Manual tidal stream on the leg INTO this waypoint (from the stream atlas): rate and the direction it sets toward. Beats the model current. */
+  streamRateKn?: number | null;
+  streamSetDeg?: number | null;
 };
+
+export type CurrentSource = 'manual' | 'model';
 
 export type CurrentAt = (lat: number, lon: number, iso: string) => { speedKn: number; dirTowardDeg: number } | null;
 
@@ -38,6 +43,12 @@ export type EngineLeg = {
   eta: string;
   departFrom: string;
   warnings: string[];
+  /** Current applied on this leg (null when none): rate, set toward, where it came from, and the ETA shift it caused. */
+  currentKn: number | null;
+  currentDirDeg: number | null;
+  currentSource: CurrentSource | null;
+  /** Minutes the current moved this leg's arrival versus still water (positive = later). */
+  currentDeltaMin: number | null;
 };
 
 export type EngineOutput = {
@@ -107,6 +118,7 @@ export function runEngine(input: EngineInput): EngineOutput {
       waypointId: origin.id, sequence: origin.sequence, fromWaypointId: null,
       distanceNm: 0, bearingDeg: 0, stwKn: 0, sogKn: 0, hours: 0,
       eta: departure, departFrom, warnings: originWarnings,
+      currentKn: null, currentDirDeg: null, currentSource: null, currentDeltaMin: null,
     });
     prev = { lat: origin.lat, lon: origin.lon, id: origin.id, departFrom };
     startIdx += 1;
@@ -125,6 +137,7 @@ export function runEngine(input: EngineInput): EngineOutput {
     let sogKn = stwKn;
     let hours: number;
     let eta: string;
+    let currentKn: number | null = null, currentDirDeg: number | null = null, currentSource: CurrentSource | null = null, currentDeltaMin: number | null = null;
     if (!(stwKn > 0)) {
       warnings.push('invalid_speed');
       errors.push(`invalid_speed:${w.id}`);
@@ -133,18 +146,25 @@ export function runEngine(input: EngineInput): EngineOutput {
       sogKn = 0;
     } else {
       hours = distanceNm / stwKn;
-      if (input.useCurrent && input.currentAt) {
-        // One refinement pass: sample the current at the leg midpoint at the
-        // first-pass mid-leg time, then recompute SOG.
+      const still = hours;
+      // A manual stream typed from the atlas for this leg wins. Otherwise one refinement pass on the
+      // model current: sample it at the leg midpoint at the first-pass mid-leg time, then recompute SOG.
+      let cur: { speedKn: number; dirTowardDeg: number; source: CurrentSource } | null = null;
+      if (w.streamRateKn !== null && w.streamRateKn !== undefined && w.streamSetDeg !== null && w.streamSetDeg !== undefined && Number.isFinite(w.streamRateKn) && Number.isFinite(w.streamSetDeg)) {
+        cur = { speedKn: Math.max(0, w.streamRateKn), dirTowardDeg: w.streamSetDeg, source: 'manual' };
+      } else if (input.useCurrent && input.currentAt && distanceNm > 0) {
         const mid = midpoint(prev.lat, prev.lon, w.lat, w.lon);
         const midTime = isoAdd(prev.departFrom, hours / 2);
-        const cur = input.currentAt(mid.lat, mid.lon, midTime);
-        if (cur) {
-          const rel = ((cur.dirTowardDeg - bearingDeg) * Math.PI) / 180;
-          sogKn = Math.max(MIN_SOG_KN, stwKn + cur.speedKn * Math.cos(rel));
-          hours = distanceNm / sogKn;
-          warnings.push('current_adjusted');
-        }
+        const m = input.currentAt(mid.lat, mid.lon, midTime);
+        if (m && Number.isFinite(m.speedKn) && Number.isFinite(m.dirTowardDeg)) cur = { ...m, source: 'model' };
+      }
+      if (cur && distanceNm > 0) {
+        const rel = ((cur.dirTowardDeg - bearingDeg) * Math.PI) / 180;
+        sogKn = Math.max(MIN_SOG_KN, stwKn + cur.speedKn * Math.cos(rel));
+        hours = distanceNm / sogKn;
+        warnings.push('current_adjusted');
+        currentKn = round(cur.speedKn, 2); currentDirDeg = round(cur.dirTowardDeg, 0); currentSource = cur.source;
+        currentDeltaMin = Math.round((hours - still) * 60);
       }
       eta = isoAdd(prev.departFrom, hours);
     }
@@ -164,6 +184,7 @@ export function runEngine(input: EngineInput): EngineOutput {
       waypointId: w.id, sequence: w.sequence, fromWaypointId: prev.id,
       distanceNm: round(distanceNm, 2), bearingDeg: round(bearingDeg, 1),
       stwKn, sogKn: round(sogKn, 2), hours: round(hours, 4), eta, departFrom, warnings,
+      currentKn, currentDirDeg, currentSource, currentDeltaMin,
     });
     totalDistanceNm += distanceNm;
     totalHours += hours;

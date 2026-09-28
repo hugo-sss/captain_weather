@@ -7,7 +7,7 @@ const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 export function WindRose({ bins, size = 220 }: { bins: RoseBin[]; size?: number }) {
   const total = bins.reduce((s, b) => s + b.hours, 0);
   const cx = size / 2, cy = size / 2, R = size / 2 - 22;
-  if (total === 0) return <div className="gap-hatch rounded-md border border-dashed border-border text-xs text-text-3 flex items-center justify-center mx-auto" style={{ width: size, height: size }}>no wind data in the window</div>;
+  if (total === 0) return <div className="gap-hatch rounded-lg text-[13px] text-text-3 flex items-center justify-center mx-auto text-center px-4" style={{ width: size, height: size }}>No wind data for the stay</div>;
   const maxShare = Math.max(...bins.map((b) => b.hours / total));
   const ramp = `linear-gradient(90deg, ${WIND_RAMP.map(([k, c]) => `${c} ${(k / 50) * 100}%`).join(', ')})`;
   return (
@@ -22,7 +22,7 @@ export function WindRose({ bins, size = 220 }: { bins: RoseBin[]; size?: number 
           const r = R * share;
           const a0 = ((b.sector * 22.5 - 10 - 90) * Math.PI) / 180, a1 = ((b.sector * 22.5 + 10 - 90) * Math.PI) / 180;
           const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-          return <path key={b.sector} d={`M${cx},${cy} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} Z`} fill={windColor(b.mean_speed_kn)} fillOpacity={0.85} stroke="#0B1220" strokeWidth={1}><title>{b.label}: {b.hours} h, mean {b.mean_speed_kn ?? '—'} kn, max {b.max_speed_kn ?? '—'} kn</title></path>;
+          return <path key={b.sector} d={`M${cx},${cy} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} Z`} fill={windColor(b.mean_speed_kn)} fillOpacity={0.85} stroke="#0B1220" strokeWidth={1}><title>{b.label}: {b.hours} h, mean {b.mean_speed_kn ?? 'unknown'} kn, max {b.max_speed_kn ?? 'unknown'} kn</title></path>;
         })}
         <circle cx={cx} cy={cy} r={2} fill="#E6EDF7" />
         {POINTS.map((l, i) => { const a = ((i * 45 - 90) * Math.PI) / 180; const major = i % 2 === 0; return <text key={l} x={cx + (R + 12) * Math.cos(a)} y={cy + (R + 12) * Math.sin(a) + 3.5} textAnchor="middle" fontSize={major ? 10 : 8} fontWeight={major ? 600 : 400} fill={major ? '#E6EDF7' : '#66748F'}>{l}</text>; })}
