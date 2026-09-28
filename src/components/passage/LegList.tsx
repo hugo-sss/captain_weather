@@ -7,7 +7,7 @@ import { num } from '@/types/domain.ts';
 import type { LegProfileData } from '@/lib/leg-profile.ts';
 import { RISK_RANK } from '@/lib/leg-profile.ts';
 import { RISK_HEX } from '@/lib/risk-colors.ts';
-import { distancePhrase, localClock, localDayTime, seaPhrase, tidePhrase, windPhrase } from '@/lib/plain.ts';
+import { distancePhrase, localClock, localDayTime, seaPhrase, streamPhrase, tidePhrase, windPhrase } from '@/lib/plain.ts';
 import { fmtUtc } from '@/lib/time.ts';
 import { RiskPill } from '@/components/dashboard/RiskPill.tsx';
 import { DisagreementBadge } from '@/components/dashboard/DisagreementBadge.tsx';
@@ -59,6 +59,8 @@ export function LegList({ passageId, waypoints, byWp, legInto, selectedId, onSel
         const wind = c ? windPhrase(c.wind_p50_kn, c.wind_p90_kn, c.wind_dir_mean_deg, c.gust_p90_kn) : null;
         const sea = c ? seaPhrase(c.wave_height_m, c.wave_period_s, c.swell_height_m, c.swell_dir_deg) : null;
         const tide = c && wp.is_anchorage ? tidePhrase(c.tide_height_m, c.tide_datum, c.tide_state) : null;
+        const stream = c ? streamPhrase(c.current_applied_kn, c.current_applied_dir_deg, c.current_source, c.current_delta_min) : null;
+        const typedStream = num(wp.stream_rate_kn) !== null && num(wp.stream_set_deg) !== null;
         const wpP90 = num(c?.wind_p90_kn);
         const worsePoint = leg?.summary.worstPoint ?? null;
         const worseMidLeg = leg && worsePoint && ((leg.summary.maxWindP90 ?? 0) > (wpP90 ?? 0) + 2 || RISK_RANK[leg.summary.worstRisk] > RISK_RANK[asRisk(c?.risk_flag)]);
@@ -94,6 +96,8 @@ export function LegList({ passageId, waypoints, byWp, legInto, selectedId, onSel
                 {wind ? <p>{wind}{detail === 'detailed' && <GustSourceChip source={c?.gust_source} className="ml-1.5" />}</p> : <p className="text-text-3" title="No atmospheric grid point within 55 km or 6 h of the ETA">No wind data at this point</p>}
                 {sea ? <p className="text-text-2">{sea}</p> : <p className="text-text-3" title="No marine grid point within 55 km">No sea state data</p>}
                 {wp.is_anchorage && (tide ? <p className="text-text-2">Tide {tide} on arrival</p> : <p className="text-text-3">No tide data</p>)}
+                {stream ? <p className={c?.current_source === 'manual' ? 'text-text-1' : 'text-text-2'}>{stream}{c?.current_source === 'model' && detail === 'detailed' && <span className="text-text-3"> (about 9 km grid, blind in channels)</span>}</p>
+                  : typedStream ? <p className="text-text-2">Stream {num(wp.stream_rate_kn)?.toFixed(1)} kn typed from the atlas, applied at the next check</p> : null}
               </div>
             )}
             {(c?.source_disagreement || worseMidLeg || (underway && onArrived)) && (

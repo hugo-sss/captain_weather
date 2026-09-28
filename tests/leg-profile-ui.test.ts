@@ -4,7 +4,7 @@ import type { LegConditionsRow, WaypointRow } from '../src/types/domain.ts';
 
 const wp = (id: string, sequence: number, lat: number, lon: number, legNm: number | null): WaypointRow => ({
   id, passage_id: 'p', sequence, name: id.toUpperCase(), lat, lon, geom: null, planned_speed_kn: null, is_anchorage: false, planned_departure_from_here: null, anchorage_exposure_tag: null,
-  is_complex_coastal: false, charted_depth_m: null, charted_depth_source: null, eta: '2026-09-05T00:00:00Z', leg_distance_nm: legNm, leg_bearing_deg: null, arrived: false, arrived_at: null, source: 'map', created_at: '', updated_at: '',
+  is_complex_coastal: false, charted_depth_m: null, charted_depth_source: null, stream_rate_kn: null, stream_set_deg: null, eta: '2026-09-05T00:00:00Z', leg_distance_nm: legNm, leg_bearing_deg: null, arrived: false, arrived_at: null, source: 'map', created_at: '', updated_at: '',
 });
 const row = (o: Partial<LegConditionsRow> & { from_waypoint_id: string; to_waypoint_id: string; seq: number; fraction: number }): LegConditionsRow => ({
   id: `${o.from_waypoint_id}-${o.seq}`, run_id: 'r', lat: 0, lon: 0, eta: '2026-09-05T06:00:00Z', lead_time_hours: 6, atmos_init_time: null,

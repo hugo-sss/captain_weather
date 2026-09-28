@@ -54,6 +54,7 @@ export const waypoints: Row[] = seeds.map((s, i) => {
     id: s.id, passage_id: 'p1', sequence: i + 1, name: s.name, lat: s.lat, lon: s.lon, geom: null,
     planned_speed_kn: i === 3 ? 10 : null, is_anchorage: !!s.anchorage, planned_departure_from_here: stayEnd ? iso(stayEnd) : null,
     anchorage_exposure_tag: s.exposure ?? null, is_complex_coastal: !!s.complex, charted_depth_m: s.depth, charted_depth_source: s.depth === null ? null : s.depthSource ?? 'user',
+    stream_rate_kn: s.id === 'wp4' ? 1.4 : null, stream_set_deg: s.id === 'wp4' ? 60 : null,
     eta: iso(eta), leg_distance_nm: round1(dist), leg_bearing_deg: brg === null ? null : Math.round(brg),
     arrived: !!s.arrived, arrived_at: s.arrived ? iso(eta + 0.2 * H) : null, source: i === 0 ? 'map' : 'gpx',
     created_at: iso(NOW - 4 * 24 * H), updated_at: iso(NOW - 6 * H),
@@ -71,7 +72,7 @@ export const passages: Row[] = [
 
 // Second passage's waypoints (for history flags only).
 for (const [i, [name, lat, lon]] of ([['Gocek', 36.755, 28.94], ['Kizilada', 36.62, 29.05], ['Bodrum', 37.03, 27.43]] as const).entries()) {
-  waypoints.push({ id: `p2wp${i + 1}`, passage_id: 'p2', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: false, planned_departure_from_here: null, anchorage_exposure_tag: null, is_complex_coastal: false, charted_depth_m: null, charted_depth_source: null, eta: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), leg_distance_nm: i === 0 ? 0 : 42.3, leg_bearing_deg: null, arrived: true, arrived_at: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), source: 'csv', created_at: iso(NOW - 15 * 24 * H), updated_at: iso(NOW - 11 * 24 * H) });
+  waypoints.push({ id: `p2wp${i + 1}`, passage_id: 'p2', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: false, planned_departure_from_here: null, anchorage_exposure_tag: null, is_complex_coastal: false, charted_depth_m: null, charted_depth_source: null, stream_rate_kn: null, stream_set_deg: null, eta: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), leg_distance_nm: i === 0 ? 0 : 42.3, leg_bearing_deg: null, arrived: true, arrived_at: iso(NOW - 12 * 24 * H + (i + 1) * 4 * H), source: 'csv', created_at: iso(NOW - 15 * 24 * H), updated_at: iso(NOW - 11 * 24 * H) });
 }
 
 // Planned passage p4 (Lefkada to Corfu on the tender at 26 kn): a route with engine ETAs and no conditions run,
@@ -85,7 +86,7 @@ for (const [i, [name, lat, lon]] of ([['Gocek', 36.755, 28.94], ['Kizilada', 36.
     const dist = prev ? haversineNm(prev[1], prev[2], lat, lon) : 0;
     const brg = prev ? initialBearingDeg(prev[1], prev[2], lat, lon) : null;
     if (prev) t4 += (dist / 26) * H;
-    waypoints.push({ id: `p4wp${i + 1}`, passage_id: 'p4', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: i === 1, planned_departure_from_here: i === 1 ? iso(t4 + 3 * H) : null, anchorage_exposure_tag: i === 1 ? 'sheltered' : null, is_complex_coastal: false, charted_depth_m: i === 1 ? 9 : null, charted_depth_source: i === 1 ? 'user' : null, eta: iso(t4), leg_distance_nm: round1(dist), leg_bearing_deg: brg === null ? null : Math.round(brg), arrived: false, arrived_at: null, source: 'map', created_at: iso(NOW - 45 * 24 * H), updated_at: iso(NOW - 38 * 24 * H) });
+    waypoints.push({ id: `p4wp${i + 1}`, passage_id: 'p4', sequence: i + 1, name, lat, lon, geom: null, planned_speed_kn: null, is_anchorage: i === 1, planned_departure_from_here: i === 1 ? iso(t4 + 3 * H) : null, anchorage_exposure_tag: i === 1 ? 'sheltered' : null, is_complex_coastal: false, charted_depth_m: i === 1 ? 9 : null, charted_depth_source: i === 1 ? 'user' : null, stream_rate_kn: null, stream_set_deg: null, eta: iso(t4), leg_distance_nm: round1(dist), leg_bearing_deg: brg === null ? null : Math.round(brg), arrived: false, arrived_at: null, source: 'map', created_at: iso(NOW - 45 * 24 * H), updated_at: iso(NOW - 38 * 24 * H) });
     if (i === 1) t4 += 3 * H;
   });
 }
@@ -121,6 +122,8 @@ function cond(run: string, s: CondSeed, overrides: Row = {}): Row {
   return {
     id: Number(`${run === 'run-1' ? 1 : 2}${wp.sequence}`), run_id: run, waypoint_id: s.wp, eta: iso(eta), eta_planned: wp.eta, lead_time_hours: round1((eta - ATMOS_INIT) / H),
     gust_source: s.gustSrc, squall_risk: s.squall, cape_p50_jkg: s.cape, speed_loss_pct: s.loss,
+    sog_kn: wp.sequence === 1 ? null : s.wp === 'wp4' ? 9.1 : 11.6, current_applied_kn: wp.sequence === 1 ? null : s.wp === 'wp4' ? 1.4 : s.current?.[0] ?? null, current_applied_dir_deg: wp.sequence === 1 ? null : s.wp === 'wp4' ? 60 : s.current?.[1] ?? null,
+    current_source: wp.sequence === 1 ? null : s.wp === 'wp4' ? 'manual' : s.current ? 'model' : null, current_delta_min: wp.sequence === 1 ? null : s.wp === 'wp4' ? 25 : s.current ? -4 : null,
     atmos_source: 'google_weathernext2_ensemble', atmos_init_time: iso(ATMOS_INIT), atmos_forecast_time: iso(floorTo(eta, 1)),
     wind_p10_kn: s.wind[0], wind_p50_kn: s.wind[1], wind_p90_kn: s.wind[2], wind_dir_mean_deg: s.dir, wind_dir_spread_deg: s.spread, gust_p90_kn: s.gust,
     visibility_p50_m: s.vis, mslp_p50_hpa: s.mslp, precip_prob_pct: s.precip,

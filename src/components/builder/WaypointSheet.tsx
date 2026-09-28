@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Grid2x2, Mountain } from 'lucide-react';
+import { Anchor, Grid2x2, Mountain, Waves } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
@@ -10,12 +10,12 @@ import { DepthSourceChip } from '@/components/dashboard/DepthSourceChip.tsx';
 import { useDisplayPrefs } from '@/hooks/useDisplayPrefs.ts';
 import type { DraftWaypoint, ExposureTag } from '@/types/domain.ts';
 import { fromLocalInput, toLocalInput } from '@/lib/time.ts';
-import { localDateTime } from '@/lib/plain.ts';
+import { localDateTime, streamPhrase } from '@/lib/plain.ts';
 import { suggestGebcoDepth } from '@/lib/gebco-source.ts';
 import type { GebcoSuggestion } from '@/lib/gebco.ts';
 import { cn } from '@/lib/utils.ts';
 
-type Props = { wp: (DraftWaypoint & { key: string; eta?: string }) | null; onChange: (patch: Partial<DraftWaypoint>) => void; onClose: () => void };
+type Props = { wp: (DraftWaypoint & { key: string; eta?: string; streamDeltaMin?: number | null }) | null; onChange: (patch: Partial<DraftWaypoint>) => void; onClose: () => void };
 
 function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -118,6 +118,16 @@ function SheetBody({ wp, onChange, onClose }: { wp: NonNullable<Props['wp']>; on
             </div>
             {needsDepth && <DepthPrompt lat={wp.lat} lon={wp.lon} onAccept={(s) => onChange({ charted_depth_m: s.depthM, charted_depth_source: 'gebco' })} />}
           </Group>
+          {wp.sequence > 1 && (
+            <Group title="Tidal stream on the leg to here" hint="Type the rate and set from the stream atlas for the hour you expect to be on this leg. It corrects the speed over ground and the ETA, and beats the model current on this leg. Leave empty to use the model surface current.">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Rate (kn)</Label><Input type="number" step="0.1" min="0" value={wp.stream_rate_kn ?? ''} placeholder="From the atlas" onChange={(e) => onChange({ stream_rate_kn: numOrNull(e.target.value) })} /></div>
+                <div><Label>Sets toward (degrees true)</Label><Input type="number" step="1" min="0" max="359" value={wp.stream_set_deg ?? ''} placeholder="Direction it flows to" onChange={(e) => onChange({ stream_set_deg: numOrNull(e.target.value) })} /></div>
+              </div>
+              {wp.stream_rate_kn !== null && wp.stream_rate_kn !== undefined && (wp.stream_set_deg === null || wp.stream_set_deg === undefined) && <p className="t-caption flex items-center gap-1.5 text-risk-amber"><Waves className="h-3.5 w-3.5" /> Add the set direction, or the stream is ignored.</p>}
+              {wp.stream_rate_kn !== null && wp.stream_rate_kn !== undefined && wp.stream_set_deg !== null && wp.stream_set_deg !== undefined && <p className="t-caption">{streamPhrase(wp.stream_rate_kn, wp.stream_set_deg, 'manual', wp.streamDeltaMin ?? null)}</p>}
+            </Group>
+          )}
           <Group title="Notes">
             <ToggleRow icon={<Mountain className="h-4 w-4" />} title="Complex coastline" hint="Caps confidence at moderate here, because models handle headlands and channels poorly." checked={wp.is_complex_coastal} onChange={(v) => onChange({ is_complex_coastal: v })} />
           </Group>

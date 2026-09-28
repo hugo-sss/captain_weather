@@ -1,7 +1,7 @@
 // Persist the §11.1 target plan for one passage. Shared by plan-targets and compute-conditions.
 import type { Admin } from './supabaseAdmin.ts';
 import { planTargets } from '../targets.ts';
-import { runEngine, type EngineOutput } from '../engine.ts';
+import { runEngine, type CurrentAt, type EngineOutput } from '../engine.ts';
 import type { Settings } from './settings.ts';
 
 export type PassageRow = { id: string; vessel_id: string; planned_departure: string; actual_departure: string | null; status: string; tropical_activity_flag: boolean; frontal_activity_flag: boolean; name: string };
@@ -10,6 +10,7 @@ export type WaypointRow = {
   id: string; passage_id: string; sequence: number; name: string | null; lat: number; lon: number; planned_speed_kn: number | null;
   is_anchorage: boolean; planned_departure_from_here: string | null; anchorage_exposure_tag: string | null; is_complex_coastal: boolean;
   charted_depth_m: number | null; arrived: boolean; arrived_at: string | null; eta: string | null;
+  stream_rate_kn?: number | null; stream_set_deg?: number | null;
 };
 
 export async function loadPassage(admin: Admin, passageId: string): Promise<{ passage: PassageRow; vessel: VesselRow; waypoints: WaypointRow[] }> {
@@ -25,25 +26,31 @@ export async function loadPassage(admin: Admin, passageId: string): Promise<{ pa
 /** PostgREST returns numeric columns as strings; coerce the ones we compute with. */
 function numeric<T extends Record<string, unknown>>(row: T): T {
   const out: Record<string, unknown> = { ...row };
-  for (const k of ['lat', 'lon', 'planned_speed_kn', 'charted_depth_m', 'leg_distance_nm', 'leg_bearing_deg', 'cruise_speed_kn', 'draft_m', 'max_wind_kn', 'max_gust_kn', 'max_wave_m', 'max_current_kn', 'min_ukc_m']) {
+  for (const k of ['lat', 'lon', 'planned_speed_kn', 'charted_depth_m', 'stream_rate_kn', 'stream_set_deg', 'leg_distance_nm', 'leg_bearing_deg', 'cruise_speed_kn', 'draft_m', 'max_wind_kn', 'max_gust_kn', 'max_wave_m', 'max_current_kn', 'min_ukc_m']) {
     if (typeof out[k] === 'string') out[k] = Number(out[k]);
   }
   return out as T;
 }
 export const coerceVessel = (v: VesselRow) => numeric(v as unknown as Record<string, unknown>) as unknown as VesselRow;
 
-export function engineFor(passage: PassageRow, vessel: VesselRow, waypoints: WaypointRow[], currentPosition?: { lat: number; lon: number; at?: string }): EngineOutput {
+/** Engine over DB rows. `currentAt` (model surface current) is applied only when given; a manual stream typed on a
+ *  waypoint (migration 0010) is always applied by the engine, so the "planned" run passes `manualStreams: false`. */
+export function engineFor(passage: PassageRow, vessel: VesselRow, waypoints: WaypointRow[], currentPosition?: { lat: number; lon: number; at?: string }, opts: { currentAt?: CurrentAt; manualStreams?: boolean } = {}): EngineOutput {
+  const manual = opts.manualStreams ?? true;
   return runEngine({
     departure: passage.actual_departure ?? passage.planned_departure,
     cruiseSpeedKn: Number(vessel.cruise_speed_kn),
-    useCurrent: false,
+    useCurrent: !!opts.currentAt,
+    currentAt: opts.currentAt,
     currentPosition,
     waypoints: waypoints.map((w) => ({
       id: w.id, sequence: w.sequence, lat: Number(w.lat), lon: Number(w.lon), plannedSpeedKn: w.planned_speed_kn,
       isAnchorage: w.is_anchorage, departureFromHere: w.planned_departure_from_here, arrived: w.arrived, arrivedAt: w.arrived_at,
+      streamRateKn: manual ? n(w.stream_rate_kn) : null, streamSetDeg: manual ? n(w.stream_set_deg) : null,
     })),
   });
 }
+const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
 /** Write engine outputs back to waypoints (§7 step 1). */
 export async function persistEngine(admin: Admin, out: EngineOutput): Promise<void> {

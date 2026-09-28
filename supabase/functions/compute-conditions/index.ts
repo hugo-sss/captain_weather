@@ -12,7 +12,7 @@ import { riskFlag, sourceDisagreement, type VesselThresholds } from '../_shared/
 import { ukcEstimate } from '../_shared/ukc.ts';
 import { circularMeanDeg, circularRangeDeg, mean, median } from '../_shared/stats.ts';
 import { legSampleFractions, speedLossPct, squallRisk, worstRisk } from '../_shared/leg-profile.ts';
-import { intermediatePoint, type EngineLeg, type EngineOutput } from '../_shared/engine.ts';
+import { intermediatePoint, type CurrentAt, type EngineLeg, type EngineOutput } from '../_shared/engine.ts';
 import type { Layer, RiskFlag } from '../_shared/contracts.ts';
 
 type Body = { passage_id?: string; kind?: 'initial' | 'recheck'; current_position?: { lat: number; lon: number; at?: string }; trigger?: 'manual' | 'scheduled' };
@@ -73,10 +73,24 @@ async function computeRun(admin: Admin, runId: string, passageId: string, kind: 
   const thresholds: VesselThresholds = { max_wind_kn: n(vessel.max_wind_kn), max_gust_kn: n(vessel.max_gust_kn), max_wave_m: n(vessel.max_wave_m), max_current_kn: n(vessel.max_current_kn), min_ukc_m: n(vessel.min_ukc_m) };
   const sourcesUsed: Record<string, unknown> = {};
 
-  // 1. Engine at planned speed; targets planned before the run (§11.1).
-  const planned = engineFor(passage, vessel, waypoints, currentPosition);
+  // 1. Engine at planned speed in still water (no stream, no sea state): the reference ETA. Targets planned before the run (§11.1).
+  const planned = engineFor(passage, vessel, waypoints, currentPosition, { manualStreams: false });
   await persistTargetPlan(admin, passage, waypoints, planned, settings);
   const idx = await loadActiveTargets(admin);
+
+  // 1b. Model surface current at each leg midpoint (migration 0010). Sampled here because the engine is synchronous;
+  // the closure below answers by the midpoint the engine asks for. A manual stream on the waypoint beats this.
+  const currentAtMid = new Map<string, { speedKn: number; dirTowardDeg: number }>();
+  if (settings.eta?.use_model_current !== false) {
+    for (const g of legGeometry(planned, byId, currentPosition)) {
+      if (g.leg.distanceNm <= 0 || g.leg.hours <= 0) continue;
+      const mid = intermediatePoint(g.fromLat, g.fromLon, g.toLat, g.toLon, 0.5);
+      const midTime = new Date(Date.parse(g.startIso) + g.leg.hours * 0.5 * HOUR).toISOString();
+      const m = await marineAt(admin, settings, idx, mid.lat, mid.lon, midTime);
+      if (m && m.currentKn !== null && m.currentDir !== null) currentAtMid.set(midKey(mid.lat, mid.lon), { speedKn: m.currentKn, dirTowardDeg: m.currentDir });
+    }
+  }
+  const currentAt: CurrentAt | undefined = currentAtMid.size ? (lat, lon) => currentAtMid.get(midKey(lat, lon)) ?? null : undefined;
 
   // 2. Sea-state speed loss per leg from the marine forecast at points along the leg (Phase 5).
   const lossByWaypoint = new Map<string, number>();
@@ -99,7 +113,7 @@ async function computeRun(admin: Admin, runId: string, passageId: string, kind: 
     const stw = n(w.planned_speed_kn) ?? Number(vessel.cruise_speed_kn);
     return loss > 0 ? { ...w, planned_speed_kn: Math.max(1, stw * (1 - loss / 100)) } : w;
   });
-  const engine = engineFor(passage, vessel, adjustedWaypoints, currentPosition);
+  const engine = engineFor(passage, vessel, adjustedWaypoints, currentPosition, { currentAt });
   await persistEngine(admin, engine);
   const plannedEta = new Map(planned.legs.map((l) => [l.waypointId, l.eta]));
 
@@ -114,7 +128,10 @@ async function computeRun(admin: Admin, runId: string, passageId: string, kind: 
       lat: Number(w.lat), lon: Number(w.lon), eta: g.leg.eta, isAnchorage: w.is_anchorage, complexCoastal: w.is_complex_coastal,
       chartedDepthM: n(w.charted_depth_m), withTidal: true, withUkc: true,
     }, sourcesUsed);
-    rows.push({ run_id: runId, waypoint_id: w.id, ...ev.out, eta_planned: plannedEta.get(w.id) ?? g.leg.eta, speed_loss_pct: loss > 0 ? loss : null });
+    rows.push({
+      run_id: runId, waypoint_id: w.id, ...ev.out, eta_planned: plannedEta.get(w.id) ?? g.leg.eta, speed_loss_pct: loss > 0 ? loss : null,
+      sog_kn: g.leg.sogKn > 0 ? g.leg.sogKn : null, current_applied_kn: g.leg.currentKn, current_applied_dir_deg: g.leg.currentDirDeg, current_source: g.leg.currentSource, current_delta_min: g.leg.currentDeltaMin,
+    });
     if (w.is_anchorage && w.planned_departure_from_here) {
       const anch = await anchorageFor(admin, settings, idx, passage, vessel, thresholds, w, g.leg);
       if (anch) await admin.from('anchorage_conditions').upsert({ run_id: runId, waypoint_id: w.id, ...anch }, { onConflict: 'run_id,waypoint_id' });
@@ -176,14 +193,15 @@ async function computeRun(admin: Admin, runId: string, passageId: string, kind: 
 }
 
 /** Wave height and direction at a point and time, or null when no marine grid point / series covers it. */
-async function marineAt(admin: Admin, s: Settings, idx: TargetIndex, lat: number, lon: number, eta: string): Promise<{ hs: number | null; waveDir: number | null } | null> {
+async function marineAt(admin: Admin, s: Settings, idx: TargetIndex, lat: number, lon: number, eta: string): Promise<{ hs: number | null; waveDir: number | null; currentKn: number | null; currentDir: number | null } | null> {
   const mt = nearestTarget(idx, 'marine', lat, lon);
   if (!mt || mt.distanceKm > maxTargetDistanceKm(s.ingest_grid.spacing_deg)) return null;
   const { rows } = await latestRowsAround(admin, 'forecast_marine', mt.target.id, s.sources.marine, eta);
   const pick = pickAtTime(rows, eta, ['wave_dir_deg', 'swell_dir_deg', 'current_dir_deg']);
   if (!pick) return null;
-  return { hs: n(pick.row.wave_height_m), waveDir: n(pick.row.wave_dir_deg) };
+  return { hs: n(pick.row.wave_height_m), waveDir: n(pick.row.wave_dir_deg), currentKn: n(pick.row.current_speed_kn), currentDir: n(pick.row.current_dir_deg) };
 }
+const midKey = (lat: number, lon: number) => `${lat.toFixed(4)},${lon.toFixed(4)}`;
 
 type PointSpec = { lat: number; lon: number; eta: string; isAnchorage: boolean; complexCoastal: boolean; chartedDepthM: number | null; withTidal: boolean; withUkc: boolean };
 

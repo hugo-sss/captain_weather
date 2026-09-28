@@ -109,3 +109,46 @@ describe('passage engine (§6)', () => {
     expect(out.legs[0].distanceNm).toBeGreaterThan(0);
   });
 });
+
+describe('tidal streams (migration 0010)', () => {
+  const two = {
+    departure: '2026-09-05T00:00:00.000Z', cruiseSpeedKn: 10, useCurrent: false,
+    waypoints: [
+      { id: 'a', sequence: 1, lat: 7.0, lon: 99.0, isAnchorage: false, arrived: false },
+      { id: 'b', sequence: 2, lat: 8.0, lon: 99.0, isAnchorage: false, arrived: false }, // 60 nm due north
+    ],
+  };
+  it('still water: no current recorded, sog equals stw', () => {
+    const out = runEngine(two);
+    expect(out.legs[1].currentSource).toBeNull();
+    expect(out.legs[1].currentDeltaMin).toBeNull();
+    expect(out.legs[1].sogKn).toBe(10);
+  });
+  it('a manual fair stream of 2 kn on a 60 nm leg saves an hour and is labelled manual', () => {
+    const out = runEngine({ ...two, waypoints: [two.waypoints[0], { ...two.waypoints[1], streamRateKn: 2, streamSetDeg: 0 }] });
+    const leg = out.legs[1];
+    expect(leg.currentSource).toBe('manual');
+    expect(leg.currentKn).toBe(2);
+    expect(leg.sogKn).toBeCloseTo(12, 1);
+    expect(leg.currentDeltaMin).toBe(-60);
+    expect(leg.warnings).toContain('current_adjusted');
+  });
+  it('a manual foul stream beats the model current and delays arrival', () => {
+    const out = runEngine({ ...two, useCurrent: true, currentAt: () => ({ speedKn: 3, dirTowardDeg: 0 }), waypoints: [two.waypoints[0], { ...two.waypoints[1], streamRateKn: 2, streamSetDeg: 180 }] });
+    expect(out.legs[1].currentSource).toBe('manual');
+    expect(out.legs[1].sogKn).toBeCloseTo(8, 1);
+    expect(out.legs[1].currentDeltaMin).toBe(90);
+  });
+  it('model current applies where no stream is typed and is labelled model', () => {
+    const out = runEngine({ ...two, useCurrent: true, currentAt: () => ({ speedKn: 1, dirTowardDeg: 90 }) });
+    const leg = out.legs[1];
+    expect(leg.currentSource).toBe('model');
+    // Beam current: cos(90) is 0 so sog is unchanged and the delta rounds to zero.
+    expect(leg.sogKn).toBeCloseTo(10, 1);
+    expect(leg.currentDeltaMin).toBe(0);
+  });
+  it('a stream with a rate but no set is ignored', () => {
+    const out = runEngine({ ...two, waypoints: [two.waypoints[0], { ...two.waypoints[1], streamRateKn: 2, streamSetDeg: null }] });
+    expect(out.legs[1].currentSource).toBeNull();
+  });
+});

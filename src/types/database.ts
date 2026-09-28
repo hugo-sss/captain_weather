@@ -998,6 +998,11 @@ export type Database = {
           run_id: string
           source_disagreement: boolean
           speed_loss_pct: number | null
+          sog_kn: number | null
+          current_applied_kn: number | null
+          current_applied_dir_deg: number | null
+          current_source: string | null
+          current_delta_min: number | null
           squall_risk: string
           swell_dir_deg: number | null
           swell_height_m: number | null
@@ -1053,6 +1058,11 @@ export type Database = {
           run_id: string
           source_disagreement?: boolean
           speed_loss_pct?: number | null
+          sog_kn?: number | null
+          current_applied_kn?: number | null
+          current_applied_dir_deg?: number | null
+          current_source?: string | null
+          current_delta_min?: number | null
           squall_risk?: string
           swell_dir_deg?: number | null
           swell_height_m?: number | null
@@ -1108,6 +1118,11 @@ export type Database = {
           run_id?: string
           source_disagreement?: boolean
           speed_loss_pct?: number | null
+          sog_kn?: number | null
+          current_applied_kn?: number | null
+          current_applied_dir_deg?: number | null
+          current_source?: string | null
+          current_delta_min?: number | null
           squall_risk?: string
           swell_dir_deg?: number | null
           swell_height_m?: number | null
@@ -1156,6 +1171,8 @@ export type Database = {
           arrived_at: string | null
           charted_depth_m: number | null
           charted_depth_source: string | null
+          stream_rate_kn: number | null
+          stream_set_deg: number | null
           created_at: string
           eta: string | null
           geom: unknown
@@ -1180,6 +1197,8 @@ export type Database = {
           arrived_at?: string | null
           charted_depth_m?: number | null
           charted_depth_source?: string | null
+          stream_rate_kn?: number | null
+          stream_set_deg?: number | null
           created_at?: string
           eta?: string | null
           geom?: unknown
@@ -1204,6 +1223,8 @@ export type Database = {
           arrived_at?: string | null
           charted_depth_m?: number | null
           charted_depth_source?: string | null
+          stream_rate_kn?: number | null
+          stream_set_deg?: number | null
           created_at?: string
           eta?: string | null
           geom?: unknown
